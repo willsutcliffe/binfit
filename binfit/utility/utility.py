@@ -5,7 +5,7 @@ from numba import jit, vectorize, float64, float32
 
 
 __all__ = ["cov2corr", "corr2cov", "xlogyx", "get_systematic_cov_mat",
-           "array_split_into"]
+           "array_split_into", "id_to_index"]
 
 
 def cov2corr(cov):
