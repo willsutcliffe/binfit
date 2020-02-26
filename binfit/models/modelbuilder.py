@@ -33,6 +33,7 @@ class ModelBuilder:
         self.shape =()
         self.convertermatrix = None
         self.convertervector = None
+        self.inverseconcov = []
         self.num_fractions = 0
         self.num_templates = 0
         self.num_bins = None
@@ -160,15 +161,19 @@ class ModelBuilder:
                 a = np.pad(a,((0,0),(count- n_fractions,self.num_fractions-count)),mode='constant')
                 arrays += [a]
                 additive += [np.vstack([np.zeros((n_fractions,1)),np.full((1,1),1.)])]
-        print(arrays)
-        print(additive)
         self.convertermatrix = np.vstack(arrays)
         self.convertervector = np.vstack(additive)
         
     def AddConstraint(self,name,value,sigma):
         self.conindices.append(self.params.getIndex(name))
         self.convalue = np.append(self.convalue, value)
-        self.consigma = np.append(self.consigma, sigma)
+        self.inverseconcov.append(np.array([1/sigma**2]))
+
+    def AddConstraints(self,names,values,cov):
+        for name, value in zip(names, values):
+          self.conindices.append(self.params.getIndex(name))
+          self.convalue = np.append(self.convalue, value)
+        self.inverseconcov.append(np.linalg.inv(cov))
 
 
     def xexpected(self):
@@ -191,11 +196,14 @@ class ModelBuilder:
                          in self.templates.values()]
         self._inv_corr = block_diag(*inv_corr_mats)
 
+    def _create_block_diag_con_corr_mat(self):
+        self.inverseconcov = block_diag(*self.inverseconcov)
+
     @jit
     def _con_term(self):
         conpars = self.params.getParametersbyIndex([self.conindices])
-        chi2cons = np.sum(((self.convalue - conpars )/self.consigma)**2)
-        return (chi2cons)
+        v = self.convalue - conpars
+        return(v @ self.inverseconcov @ v)
 
     @jit
     def _gauss_term(self,bin_pars):
@@ -217,15 +225,20 @@ class ModelBuilder:
         chi2data = np.sum((self.ExpectedEventsPerBin(bin_pars.reshape(self.shape),yields,sub_pars) - self.xobs) ** 2 / (2 * self.xobserrors**2)) 
         chi2 = chi2data + self._gauss_term(bin_pars) + self._con_term()
         return(chi2)
-
+    
+    @jit
     def NLL(self,pars):
         self.params.setParameters(pars)
-        exp_evts_per_bin = self.xexpected()
+        yields = self.params.getParametersbyIndex(self.yieldindices).reshape(self.num_templates,1)
+        sub_pars = self.params.getParametersbyIndex(self.subfraction_indices).reshape(self.num_fractions,1)
+        bin_pars = self.params.getParametersbySlice(self.bin_par_slice)
+        exp_evts_per_bin = self.ExpectedEventsPerBin(bin_pars.reshape(self.shape),yields,sub_pars)
         poisson_term = np.sum(exp_evts_per_bin - self.xobs-
                               xlogyx(self.xobs, exp_evts_per_bin))
         
-        NLL = poisson_term  + (self._gauss_term() + self._con_term()) /2.
+        NLL = poisson_term  + (self._gauss_term(bin_pars) + self._con_term()) /2.
         return(NLL)
+
 
     @staticmethod
     def _get_projection(ax, bc):
@@ -245,9 +258,16 @@ class ModelBuilder:
         shape = next(iter(self.templates.values())).shape()
 
         colors = [template.color for template in self.plottemplates.values()]
+        allyields = self.params.getParametersbyIndex(self.yieldindices).reshape(self.num_templates,1)
         yields = self.params.getParametersbyIndex([self.plotyieldindices])
-        #sub_pars = self.params.getParametersbyIndex(self.subfraction_indices).reshape(self.num_fractions,1)
-        # sub_fractions = np.matmul(self.convertermatrix,sub_pars) + self.convertervector
+        sub_pars = self.params.getParametersbyIndex(self.subfraction_indices).reshape(self.num_fractions,1)
+        bin_pars = self.params.getParametersbySlice(self.bin_par_slice).reshape(self.shape)
+        sub_fractions = np.matmul(self.convertermatrix,sub_pars) + self.convertervector
+        corrections = (1+self.template_errors*bin_pars)
+        sub_fractions = np.matmul(self.convertermatrix,sub_pars) + self.convertervector
+        pdfs = self.template_fractions*corrections
+        norm_pdfs = pdfs/np.sum(pdfs,1)[:,np.newaxis]
+
         bin_counts = [tempyield*template.fractions() for tempyield,template in zip(yields,self.plottemplates.values())]
         labels = [template.name for template in self.plottemplates.values()]
 
@@ -288,14 +308,17 @@ class ModelBuilder:
             stacked=True
         )
 
-        uncertainties_sq = [ (tempyield*template.fractions()*template.errors()).reshape(template.shape())** 2 for tempyield,template in
-                            zip(yields,self.plottemplates.values())]
+        #uncertainties_sq = [ (tempyield*template.fractions()*template.errors()).reshape(template.shape())** 2 for tempyield,template in
+        #                    zip(yields,self.plottemplates.values())]
+
+        uncertainties_sq = (allyields*sub_fractions*norm_pdfs*self.template_errors)**2
+
         if self._dim > 1:
             uncertainties_sq = [
                 self._get_projection(kwargs["projection"], unc_sq) for unc_sq in uncertainties_sq
             ]
 
-        total_uncertainty = np.sqrt(np.sum(np.array(uncertainties_sq), axis=0))
+        total_uncertainty = np.sqrt(np.sum(uncertainties_sq, axis=0))
         total_bin_count = np.sum(np.array(bin_counts), axis=0)
 
         ax.bar(
@@ -344,8 +367,16 @@ class ModelBuilder:
         -------
 
         """
-        return CostFunction(self,self.params)
+        return NLLCostFunction(self,self.params)
 
+    def create_chi2(self):
+        """
+
+        Returns
+        -------
+
+        """
+        return Chi2CostFunction(self,self.params)
 
 class AbstractTemplateCostFunction(ABC):
     """Abstract base class for all cost function to estimate
@@ -375,7 +406,7 @@ class AbstractTemplateCostFunction(ABC):
         pass
 
 
-class CostFunction(AbstractTemplateCostFunction):
+class Chi2CostFunction(AbstractTemplateCostFunction):
 
     def __init__(self, model: ModelBuilder, params: ParameterHandler):
         super().__init__()
@@ -392,3 +423,21 @@ class CostFunction(AbstractTemplateCostFunction):
 
     def __call__(self, x):
         return(self._model.chi2(x))
+
+class NLLCostFunction(AbstractTemplateCostFunction):
+
+    def __init__(self, model: ModelBuilder, params: ParameterHandler):
+        super().__init__()
+        self._model = model
+        self._params = params
+
+    @property
+    def x0(self):
+        return(self._params.getParameters())
+
+    @property
+    def param_names(self):
+        return(self._params.getParameterNames())
+
+    def __call__(self, x):
+        return(self._model.NLL(x))

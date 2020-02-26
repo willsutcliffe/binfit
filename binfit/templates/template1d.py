@@ -60,16 +60,48 @@ class Template1d(SingleTemplate):
     def labels(self):
         return([self.name])
 
-    def add_variation(self, data, weights_up, weights_down):
+    def add_variation(self, data, weights_up, weights_down, total_weight=None, nominal_weight=None):
         """Add a new covariance matrix from a given systematic variation
         of the underlying histogram to the template."""
-        hup = Hist1d(
-            bins=self._hist.num_bins, range=self._range, data=data, weights=weights_up
-        )
-        hdown = Hist1d(
-            bins=self._hist.num_bins, range=self._range, data=data, weights=weights_down
-        )
-        self._add_cov_mat(hup, hdown)
+        if (total_weight==None | nominal_weight==None):
+            hup = Hist1d(
+                bins=self._hist.num_bins, range=self._range, data=data, weights=data[weights_up]
+            )
+            hdown = Hist1d(
+                bins=self._hist.num_bins, range=self._range, data=data, weights=data[weights_down]
+            )
+        else:
+            hup = Hist1d(
+                bins=self._hist.num_bins, range=self._range, data=data,
+                weights=data[weights_up]*data[total_weight]/data[nominal_weight]
+            )
+            hdown = Hist1d(
+                bins=self._hist.num_bins, range=self._range, data=data,
+                weights=data[weights_down]*data[total_weight]/data[nominal_weight]
+            )
+        self._add_cov_mat_up_down(hup, hdown)
+
+    def add_gaussian_variation(self, data, nominal_weight, new_weight, Nweights==None , total_weight=None):
+        """Add a new covariance matrix from a given systematic variation
+        of the underlying histogram to the template."""
+        if Nweights==None:
+        Nweights = len([col in data.columns if new_weight in col])
+        if total_weight == None:
+            nominal = Hist1d(
+            bins=self._hist.num_bins, range=self._range, data=data, weights=data[nominal_weight]
+            ).bin_counts
+            bin_counts = np.array([Hist1d(
+            bins=self._hist.num_bins, range=self._range, data=data,
+            weights=data['{}_{}'.format(new_weight,i)]).bin_counts for i in range(0,Nweights)])
+        else:
+            nominal = Hist1d(
+            bins=self._hist.num_bins, range=self._range, data=data, weights=data[total_weight]
+            ).bin_counts
+            bin_counts = np.array([Hist1d(
+            bins=self._hist.num_bins, range=self._range, data=data,
+            weights=data['{}_{}'.format(new_weight,i)]*data[total_weight]/data[nominal_weight]).bin_counts for i in range(0,Nweights)])
+        cov_mat = np.matmult((bin_counts - nominal).T, (bin_counts - nominal))
+        self._add_cov_mat(cov_mat)
 
     def add_singlepar_variation(self, data, weights_up, weights_down,name,register=True):
         """Add a new covariance matrix from a given systematic variation

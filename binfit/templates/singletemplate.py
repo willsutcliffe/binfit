@@ -126,14 +126,9 @@ class SingleTemplate(AbstractTemplate,ABC):
             where=self._flat_bin_counts != 0,
         )
 
-
-    def _add_cov_mat(self, hup, hdown):
-        """Helper function. Calculates a covariance matrix from
-        given histogram up and down variations.
+    def _add_cov_mat(self, cov_mat):
+        """ Adds an existing covarince matrix
         """
-        cov_mat = get_systematic_cov_mat(
-            self._flat_bin_counts, hup.bin_counts.flatten(), hdown.bin_counts.flatten()
-        )
         self._cov_mats.append(np.copy(cov_mat))
 
         self._cov += cov_mat
@@ -145,6 +140,15 @@ class SingleTemplate(AbstractTemplate,ABC):
             out=np.full(self._num_bins, 1e-7),
             where=self._flat_bin_counts != 0,
         )
+
+    def _add_cov_mat_up_down(self, hup, hdown):
+        """Helper function. Calculates a covariance matrix from
+        given histogram up and down variations.
+        """
+        cov_mat = get_systematic_cov_mat(
+            self._flat_bin_counts, hup.bin_counts.flatten(), hdown.bin_counts.flatten()
+        )
+        sef._add_cov_mat(cov_mat)
 
     @property
     def values(self,index):

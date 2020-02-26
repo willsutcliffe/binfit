@@ -32,9 +32,12 @@ class BinFitter:
         'scipy' and 'iminuit'.
     """
 
-    def __init__(self, model, minimizer_id):
+    def __init__(self, model, minimizer_id, cost='poisson'):
         self._model = model
-        self._nll = model.create_nll()
+        if(cost == 'poisson'):
+         self._nll = model.create_nll()
+        elif(cost == 'chi2'):
+         self._nll = model.create_chi2()
         self._fit_result = None
         self._minimizer_id = minimizer_id
         self._fixed_parameters = list()
