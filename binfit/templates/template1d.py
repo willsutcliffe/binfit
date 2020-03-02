@@ -60,45 +60,45 @@ class Template1d(SingleTemplate):
     def labels(self):
         return([self.name])
 
-    def add_variation(self, data, weights_up, weights_down, total_weight=None, nominal_weight=None):
+    def add_variation(self, data, var, weights_up, weights_down, total_weight=None, nominal_weight=None):
         """Add a new covariance matrix from a given systematic variation
         of the underlying histogram to the template."""
-        if (total_weight==None | nominal_weight==None):
+        if (total_weight==None or nominal_weight==None):
             hup = Hist1d(
-                bins=self._hist.num_bins, range=self._range, data=data, weights=data[weights_up]
+                bins=self._hist.num_bins, range=self._range, data=data[var], weights=data[weights_up]
             )
             hdown = Hist1d(
-                bins=self._hist.num_bins, range=self._range, data=data, weights=data[weights_down]
+                bins=self._hist.num_bins, range=self._range, data=data[var], weights=data[weights_down]
             )
         else:
             hup = Hist1d(
-                bins=self._hist.num_bins, range=self._range, data=data,
+                bins=self._hist.num_bins, range=self._range, data=data[var],
                 weights=data[weights_up]*data[total_weight]/data[nominal_weight]
             )
             hdown = Hist1d(
-                bins=self._hist.num_bins, range=self._range, data=data,
+                bins=self._hist.num_bins, range=self._range, data=data[var],
                 weights=data[weights_down]*data[total_weight]/data[nominal_weight]
             )
         self._add_cov_mat_up_down(hup, hdown)
 
-    def add_gaussian_variation(self, data, nominal_weight, new_weight, Nweights==None , total_weight=None):
+    def add_gaussian_variation(self, data, var, nominal_weight, new_weight, Nweights=None , total_weight=None):
         """Add a new covariance matrix from a given systematic variation
         of the underlying histogram to the template."""
         if Nweights==None:
-        Nweights = len([col in data.columns if new_weight in col])
+            Nweights = len([col for col in data.columns if new_weight in col])
         if total_weight == None:
             nominal = Hist1d(
-            bins=self._hist.num_bins, range=self._range, data=data, weights=data[nominal_weight]
+            bins=self._hist.num_bins, range=self._range, data=data[var], weights=data[nominal_weight]
             ).bin_counts
             bin_counts = np.array([Hist1d(
-            bins=self._hist.num_bins, range=self._range, data=data,
+            bins=self._hist.num_bins, range=self._range, data=data[var],
             weights=data['{}_{}'.format(new_weight,i)]).bin_counts for i in range(0,Nweights)])
         else:
             nominal = Hist1d(
-            bins=self._hist.num_bins, range=self._range, data=data, weights=data[total_weight]
+            bins=self._hist.num_bins, range=self._range, data=data[var], weights=data[total_weight]
             ).bin_counts
             bin_counts = np.array([Hist1d(
-            bins=self._hist.num_bins, range=self._range, data=data,
+            bins=self._hist.num_bins, range=self._range, data=data[var],
             weights=data['{}_{}'.format(new_weight,i)]*data[total_weight]/data[nominal_weight]).bin_counts for i in range(0,Nweights)])
         cov_mat = np.matmult((bin_counts - nominal).T, (bin_counts - nominal))
         self._add_cov_mat(cov_mat)

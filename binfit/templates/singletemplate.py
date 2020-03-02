@@ -148,7 +148,7 @@ class SingleTemplate(AbstractTemplate,ABC):
         cov_mat = get_systematic_cov_mat(
             self._flat_bin_counts, hup.bin_counts.flatten(), hdown.bin_counts.flatten()
         )
-        sef._add_cov_mat(cov_mat)
+        self._add_cov_mat(cov_mat)
 
     @property
     def values(self,index):

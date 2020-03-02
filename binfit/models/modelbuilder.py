@@ -249,7 +249,7 @@ class ModelBuilder:
 
         return np.sum(bc, axis=x_to_i[ax])
 
-    def plot_stacked_on(self, ax,All=False, **kwargs):
+    def plot_stacked_on(self, ax,All=False, customlabels=None, **kwargs):
 
         bin_mids = [template.bin_mids() for template in self.plottemplates.values()]
         bin_edges = next(iter(self.templates.values())).bin_edges()
@@ -267,17 +267,25 @@ class ModelBuilder:
         sub_fractions = np.matmul(self.convertermatrix,sub_pars) + self.convertervector
         pdfs = self.template_fractions*corrections
         norm_pdfs = pdfs/np.sum(pdfs,1)[:,np.newaxis]
+        expected_bin_counts = self.ExpectedEventsPerBin(bin_pars,allyields,sub_pars) 
 
         bin_counts = [tempyield*template.fractions() for tempyield,template in zip(yields,self.plottemplates.values())]
-        labels = [template.name for template in self.plottemplates.values()]
+        if customlabels==None:
+            labels = [template.name for template in self.plottemplates.values()]
+        else:
+            labels = [customlabels[key] for key in self.plottemplates.keys()]
 
         if(All):
           colors=[]
           for template in self.templates.values():
               colors += template.colors()
-          labels=[]
-          for template in self.templates.values():
-              labels += template.labels()
+          if customlabels==None:
+              labels=[]
+              for template in self.templates.values():
+                  labels += template.labels()
+          else:
+              labels = [customlabels[key] for key in self.templates.keys()]
+              
           bin_counts = [tempyield*template.allfractions() for tempyield,template in zip(yields,self.plottemplates.values())]
           bin_counts = np.concatenate(bin_counts)
           N = len(bin_counts)
@@ -296,7 +304,7 @@ class ModelBuilder:
             bin_edges = bin_edges[ax_to_index[axis]]
             bin_width = bin_width[ax_to_index[axis]]
 
-        ax.hist(
+        ax[0].hist(
             bin_mids,
             weights=bin_counts,
             bins=bin_edges,
@@ -321,7 +329,7 @@ class ModelBuilder:
         total_uncertainty = np.sqrt(np.sum(uncertainties_sq, axis=0))
         total_bin_count = np.sum(np.array(bin_counts), axis=0)
 
-        ax.bar(
+        ax[0].bar(
             x=bin_mids[0],
             height=2 * total_uncertainty,
             width=bin_width,
@@ -357,8 +365,23 @@ class ModelBuilder:
                 }
                 data_bin_mids = data_bin_mids[ax_to_index[axis]]
 
-            ax.errorbar(x=data_bin_mids, y=data_bin_counts, yerr=np.sqrt(data_bin_errors_sq),
+            ax[0].errorbar(x=data_bin_mids, y=data_bin_counts, yerr=np.sqrt(data_bin_errors_sq),
                         ls="", marker=".", color="black", label="Data")
+
+            total_error = np.sqrt(data_bin_errors_sq+total_uncertainty**2)
+            pulls = (data_bin_counts - expected_bin_counts)/total_error
+            ax[1].set_ylim((-5, 5))
+            ax[1].hist(
+            data_bin_mids,
+            weights=pulls,
+            bins=bin_edges,
+            edgecolor="gray",
+            histtype="stepfilled",
+            lw=0.5,
+            color="gray",
+            )
+
+
 
     def create_nll(self):
         """
