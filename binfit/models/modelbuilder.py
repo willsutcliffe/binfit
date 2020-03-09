@@ -6,6 +6,8 @@ from binfit.parameters import ParameterHandler
 from scipy.linalg import block_diag
 from binfit.utility import xlogyx
 from numba import jit
+from binfit.histograms import Hist1d 
+from binfit.utility import cov2corr
 
 
 __all__ = ["ModelBuilder"]
@@ -24,6 +26,7 @@ class ModelBuilder:
         self.plotyieldindices = []
         self.subfraction_indices = []
         self.conindices = []
+        self.connames = []
         self.convalue = np.array([])
         self.consigma = np.array([])
         self._inv_corr = np.array([])
@@ -34,9 +37,11 @@ class ModelBuilder:
         self.convertermatrix = None
         self.convertervector = None
         self.inverseconcov = []
+        self.concov = []
         self.num_fractions = 0
         self.num_templates = 0
         self.num_bins = None
+        self.global_covs=[]
 
     def AddTemplate(self,template,value,create=True, same = True):
         if(self.num_bins == None):
@@ -167,13 +172,17 @@ class ModelBuilder:
     def AddConstraint(self,name,value,sigma):
         self.conindices.append(self.params.getIndex(name))
         self.convalue = np.append(self.convalue, value)
+        self.connames += [name]
         self.inverseconcov.append(np.array([1/sigma**2]))
+        self.concov.append(np.array([sigma**2]))
 
     def AddConstraints(self,names,values,cov):
+        self.connames += names
         for name, value in zip(names, values):
           self.conindices.append(self.params.getIndex(name))
           self.convalue = np.append(self.convalue, value)
         self.inverseconcov.append(np.linalg.inv(cov))
+        self.concov.append(cov)
 
 
     def xexpected(self):
@@ -191,18 +200,62 @@ class ModelBuilder:
         )
         return(binpars)
 
+    def AddGlobalCov(self,cov):
+        self.global_covs.append(cov)
+
+    def AddGaussianVariations(self, inputdfs, var, weight_names, Nvar):
+        keys=self.templates.keys()
+        temp=list(self.templates.values())[0]
+        dfs = [inputdfs[key] for key in keys]
+        nominal_weight=weight_names['nominal_weight']
+        total_weight=weight_names['total_weight']
+        new_weight=weight_names['new_weight']
+        hnom = np.concatenate([Hist1d( bins=temp._hist.num_bins, range=temp._range, data=df[var],
+            weights=df[total_weight]).bin_counts for df in dfs])
+        varMatrix=[]
+        for key in keys:
+            self.templates[key].add_gaussian_variation(inputdfs[key], var, 
+                    nominal_weight, new_weight, Nvar, total_weight)
+        for i in range(0,Nvar):
+            row = np.concatenate([Hist1d( bins=temp._hist.num_bins, range=temp._range, data=df[var],
+            weights=df['{}_{}'.format(new_weight,i)]*df[total_weight]/df[nominal_weight]).bin_counts for df in dfs])
+            varMatrix.append(row)
+        varMatrix=np.array(varMatrix)
+        covMatrix=np.matmul((varMatrix-hnom).T,(varMatrix-hnom))/Nvar
+        self.AddGlobalCov(covMatrix)
+
     def _create_block_diag_inv_corr_mat(self):
-        inv_corr_mats = [template.inv_corr_mat() for template
+        if len(self.global_covs) == 0:
+            inv_corr_mats = [template.inv_corr_mat() for template
                          in self.templates.values()]
-        self._inv_corr = block_diag(*inv_corr_mats)
+            self._inv_corr = block_diag(*inv_corr_mats)
+        else:
+            cov_mats = [template.cov_mat for template
+                         in self.templates.values()]
+            global_cov=np.sum(np.array(self.global_covs),axis=0)
+            local_cov= block_diag(*cov_mats)
+            global_cov=global_cov*(local_cov==0)
+            total_corr=cov2corr(global_cov+local_cov)
+            self._inv_corr = np.linalg.inv(total_corr)
+
 
     def _create_block_diag_con_corr_mat(self):
         self.inverseconcov = block_diag(*self.inverseconcov)
 
+    def getConstraintVector(self):
+        return(self.convalue)
+
+    def getConstraintNames(self):
+        return(self.connames)
+
+    def getConstraintCovariance(self):
+        return(block_diag(*self.concov))
+
+
     @jit
     def _con_term(self):
         conpars = self.params.getParametersbyIndex([self.conindices])
-        v = self.convalue - conpars
+        v = conpars - self.convalue
         return(v @ self.inverseconcov @ v)
 
     @jit

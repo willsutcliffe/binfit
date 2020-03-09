@@ -100,7 +100,7 @@ class Template1d(SingleTemplate):
             bin_counts = np.array([Hist1d(
             bins=self._hist.num_bins, range=self._range, data=data[var],
             weights=data['{}_{}'.format(new_weight,i)]*data[total_weight]/data[nominal_weight]).bin_counts for i in range(0,Nweights)])
-        cov_mat = np.matmult((bin_counts - nominal).T, (bin_counts - nominal))
+        cov_mat = np.matmul((bin_counts - nominal).T, (bin_counts - nominal))/Nweights
         self._add_cov_mat(cov_mat)
 
     def add_singlepar_variation(self, data, weights_up, weights_down,name,register=True):

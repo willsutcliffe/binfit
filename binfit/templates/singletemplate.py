@@ -192,7 +192,6 @@ class SingleTemplate(AbstractTemplate,ABC):
     def cov_mats(self):
         return self._cov_mats
 
-    @property
     def corr(self):
         return self._corr
 
