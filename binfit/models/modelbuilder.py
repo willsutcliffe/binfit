@@ -42,6 +42,7 @@ class ModelBuilder:
         self.num_templates = 0
         self.num_bins = None
         self.global_covs=[]
+        self.confunc = self._nocon_term
 
     def AddTemplate(self,template,value,create=True, same = True):
         if(self.num_bins == None):
@@ -240,6 +241,7 @@ class ModelBuilder:
 
 
     def _create_block_diag_con_corr_mat(self):
+        self.confunc=self._con_term
         self.inverseconcov = block_diag(*self.inverseconcov)
 
     def getConstraintVector(self):
@@ -251,6 +253,10 @@ class ModelBuilder:
     def getConstraintCovariance(self):
         return(block_diag(*self.concov))
 
+
+    @jit
+    def _nocon_term(self):
+        return(0.)
 
     @jit
     def _con_term(self):
@@ -276,7 +282,7 @@ class ModelBuilder:
     @jit
     def chi2_compute(self,bin_pars,yields,sub_pars):
         chi2data = np.sum((self.ExpectedEventsPerBin(bin_pars.reshape(self.shape),yields,sub_pars) - self.xobs) ** 2 / (2 * self.xobserrors**2)) 
-        chi2 = chi2data + self._gauss_term(bin_pars) + self._con_term()
+        chi2 = chi2data + self._gauss_term(bin_pars) + self.confunc()
         return(chi2)
     
     @jit
@@ -289,7 +295,7 @@ class ModelBuilder:
         poisson_term = np.sum(exp_evts_per_bin - self.xobs-
                               xlogyx(self.xobs, exp_evts_per_bin))
         
-        NLL = poisson_term  + (self._gauss_term(bin_pars) + self._con_term()) /2.
+        NLL = poisson_term  + (self._gauss_term(bin_pars) + self.confunc()) /2.
         return(NLL)
 
 
@@ -302,7 +308,7 @@ class ModelBuilder:
 
         return np.sum(bc, axis=x_to_i[ax])
 
-    def plot_stacked_on(self, ax,All=False, customlabels=None, **kwargs):
+    def plot_stacked_on(self, ax,All=False, customlabels=None, postfiterrors=np.array([]), **kwargs):
 
         bin_mids = [template.bin_mids() for template in self.plottemplates.values()]
         bin_edges = next(iter(self.templates.values())).bin_edges()
@@ -372,7 +378,12 @@ class ModelBuilder:
         #uncertainties_sq = [ (tempyield*template.fractions()*template.errors()).reshape(template.shape())** 2 for tempyield,template in
         #                    zip(yields,self.plottemplates.values())]
 
-        uncertainties_sq = (allyields*sub_fractions*norm_pdfs*self.template_errors)**2
+        if len(postfiterrors) == 0:
+            uncertainties_sq = (allyields*sub_fractions*norm_pdfs*self.template_errors)**2
+        else:
+            binparpostfiterrs=postfiterrors[self.bin_par_slice[0]:self.bin_par_slice[1]]
+            binparpostfiterrs=binparpostfiterrs.reshape(self.template_errors.shape)
+            uncertainties_sq = (allyields*sub_fractions*norm_pdfs*binparpostfiterrs*self.template_errors)**2
 
         if self._dim > 1:
             uncertainties_sq = [
@@ -423,16 +434,10 @@ class ModelBuilder:
 
             total_error = np.sqrt(data_bin_errors_sq+total_uncertainty**2)
             pulls = (data_bin_counts - expected_bin_counts)/total_error
-            ax[1].set_ylim((-5, 5))
-            ax[1].hist(
-            data_bin_mids,
-            weights=pulls,
-            bins=bin_edges,
-            edgecolor="gray",
-            histtype="stepfilled",
-            lw=0.5,
-            color="gray",
-            )
+            ax[1].set_ylim((-3, 3))
+            ax[1].axhline(y=0, color='dimgray', alpha=0.8)
+            ax[1].errorbar(data_bin_mids, pulls, yerr=1.,
+                         ls="", marker=".", color='black')
 
 
 
