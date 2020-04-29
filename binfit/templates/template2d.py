@@ -90,14 +90,14 @@ class Template2d(SingleTemplate):
             nominal = Hist2d(
             bins=self._hist.num_bins, range=self._range, data=data[var], weights=data[nominal_weight]
             ).bin_counts
-            bin_counts = np.array([Hist1d(
+            bin_counts = np.array([Hist2d(
             bins=self._hist.num_bins, range=self._range, data=data[var],
             weights=data['{}_{}'.format(new_weight,i)]).bin_counts for i in range(0,Nweights)])
         else:
             nominal = Hist2d(
             bins=self._hist.num_bins, range=self._range, data=data[var], weights=data[total_weight]
             ).bin_counts
-            bin_counts = np.array([Hist1d(
+            bin_counts = np.array([Hist2d(
             bins=self._hist.num_bins, range=self._range, data=data[var],
             weights=data['{}_{}'.format(new_weight,i)]*data[total_weight]/data[nominal_weight]).bin_counts for i in range(0,Nweights)])
         cov_mat = np.matmult((bin_counts - nominal).T, (bin_counts - nominal))
