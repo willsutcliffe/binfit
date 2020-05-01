@@ -81,7 +81,7 @@ class Template1d(SingleTemplate):
             )
         self._add_cov_mat_up_down(hup, hdown)
 
-    def add_gaussian_variation(self, data, var, nominal_weight, new_weight, Nweights=None , total_weight=None):
+    def add_gaussian_variation(self, data, var, nominal_weight, new_weight, Nstart=None, Nweights=None , total_weight=None):
         """Add a new covariance matrix from a given systematic variation
         of the underlying histogram to the template."""
         if Nweights==None:
@@ -92,14 +92,14 @@ class Template1d(SingleTemplate):
             ).bin_counts
             bin_counts = np.array([Hist1d(
             bins=self._hist.num_bins, range=self._range, data=data[var],
-            weights=data['{}_{}'.format(new_weight,i)]).bin_counts for i in range(0,Nweights)])
+            weights=data['{}_{}'.format(new_weight,i)]).bin_counts for i in range(Nstart, Nweights+Nstart)])
         else:
             nominal = Hist1d(
             bins=self._hist.num_bins, range=self._range, data=data[var], weights=data[total_weight]
             ).bin_counts
             bin_counts = np.array([Hist1d(
             bins=self._hist.num_bins, range=self._range, data=data[var],
-            weights=data['{}_{}'.format(new_weight,i)]*data[total_weight]/data[nominal_weight]).bin_counts for i in range(0,Nweights)])
+            weights=data['{}_{}'.format(new_weight,i)]*data[total_weight]/data[nominal_weight]).bin_counts for i in range(Nstart,Nweights+Nstart)])
         cov_mat = np.matmul((bin_counts - nominal).T, (bin_counts - nominal))/Nweights
         self._add_cov_mat(cov_mat)
 
@@ -121,6 +121,9 @@ class Template1d(SingleTemplate):
         else:
            self._sys_par_indices.append(self._params.getIndex(name))    
         self._fraction_function = self.bin_fractions_with_sys
+        
+    def add_cov(self, cov):
+        self._add_cov_mat(cov)
 
     def _init_params(self):
         """ Add parameters for the template """

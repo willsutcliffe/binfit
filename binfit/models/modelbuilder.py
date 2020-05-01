@@ -6,8 +6,8 @@ from binfit.parameters import ParameterHandler
 from scipy.linalg import block_diag
 from binfit.utility import xlogyx
 from numba import jit
-from binfit.histograms import Hist1d 
-from binfit.utility import cov2corr
+from binfit.histograms import Hist1d, Hist2d
+from binfit.utility import cov2corr, get_systematic_cov_mat
 
 
 __all__ = ["ModelBuilder"]
@@ -204,7 +204,65 @@ class ModelBuilder:
     def AddGlobalCov(self,cov):
         self.global_covs.append(cov)
 
-    def AddGaussianVariations(self, inputdfs, var, weight_names, Nvar):
+    def AddGlobalTrackingCov(self, inputdfs, var, weight_names, error_per_trk):
+        keys=self.templates.keys()
+        temp=list(self.templates.values())[0]
+        dfs = [inputdfs[key] for key in keys]
+        total_weight=weight_names['total_weight']
+        ntrack_names=weight_names['ntrack_names']
+        hnom = np.concatenate([Hist1d( bins=temp._hist.num_bins, range=temp._range, data=df[var], weights=df[total_weight]).bin_counts for df in dfs])
+        hup = np.concatenate([Hist1d( bins=temp._hist.num_bins, range=temp._range, data=df[var], weights=df[total_weight]* (1 +  df[ntrack_names]*error_per_trk)).bin_counts for df in dfs])
+        hdown = np.concatenate([Hist1d( bins=temp._hist.num_bins, range=temp._range, data=df[var], weights=df[total_weight]* (1 -  df[ntrack_names]*error_per_trk)).bin_counts for df in dfs])
+        covMatrix=get_systematic_cov_mat(hnom, hup, hdown)
+        self.AddGlobalCov(covMatrix)
+        
+    def AddGlobalTrackingCov2D(self, inputdfs, var, weight_names, error_per_trk):
+        keys=self.templates.keys()
+        temp=list(self.templates.values())[0]
+        dfs = [inputdfs[key] for key in keys]
+        total_weight=weight_names['total_weight']
+        ntrack_names=weight_names['ntrack_names']
+        hnom = np.concatenate([Hist2d( bins=temp._hist.num_bins, range=temp._range, data=[df[var[0]],df[var[1]]], weights=df[total_weight]).bin_counts for df in dfs])
+        hup = np.concatenate([Hist2d( bins=temp._hist.num_bins, range=temp._range, data=[df[var[0]],df[var[1]]], weights=df[total_weight]* (1 +  df[ntrack_names]*error_per_trk)).bin_counts for df in dfs])
+        hdown = np.concatenate([Hist2d( bins=temp._hist.num_bins, range=temp._range, data=[df[var[0]],df[var[1]]], weights=df[total_weight]* (1 -  df[ntrack_names]*error_per_trk)).bin_counts for df in dfs])
+        covMatrix=get_systematic_cov_mat(hnom, hup, hdown)
+        self.AddGlobalCov(covMatrix)
+        
+        
+    def AddGlobalVarCov(self, inputdfs, var, weight_names, Nstart, Nvar):
+        keys=self.templates.keys()
+        temp=list(self.templates.values())[0]
+        dfs = [inputdfs[key] for key in keys]
+        nominal_weight=weight_names['nominal_weight']
+        total_weight=weight_names['total_weight']
+        new_weight=weight_names['new_weight']
+        hnom = np.concatenate([Hist1d( bins=temp._hist.num_bins, range=temp._range, data=df[var], weights=df[total_weight]).bin_counts for df in dfs])
+        varMatrix=[]
+        for i in range(Nstart, Nvar+Nstart):
+            row = np.concatenate([Hist1d( bins=temp._hist.num_bins, range=temp._range, data=df[var], weights=df['{}_{}'.format(new_weight,i)]*df[total_weight]/df[nominal_weight]).bin_counts for df in dfs])
+            varMatrix.append(row)
+        varMatrix=np.array(varMatrix)
+        covMatrix=np.matmul((varMatrix-hnom).T,(varMatrix-hnom))/Nvar
+        self.AddGlobalCov(covMatrix)
+        
+    def AddGlobalVarCov2D(self, inputdfs, var, weight_names, Nstart, Nvar):
+        keys=self.templates.keys()
+        temp=list(self.templates.values())[0]
+        dfs = [inputdfs[key] for key in keys]
+        nominal_weight=weight_names['nominal_weight']
+        total_weight=weight_names['total_weight']
+        new_weight=weight_names['new_weight']
+        hnom = np.concatenate([Hist2d( bins=temp._hist.num_bins, range=temp._range, data=[df[var[0]],df[var[1]]], weights=df[total_weight]).bin_counts.flatten() for df in dfs])
+        varMatrix=[]
+        for i in range(Nstart, Nvar+Nstart):
+            row = np.concatenate([Hist2d( bins=temp._hist.num_bins, range=temp._range, data=[df[var[0]],df[var[1]]], weights=df['{}_{}'.format(new_weight,i)]*df[total_weight]/df[nominal_weight]).bin_counts.flatten() for df in dfs])
+            varMatrix.append(row)
+        varMatrix=np.array(varMatrix)
+        covMatrix=np.matmul((varMatrix-hnom).T,(varMatrix-hnom))/Nvar
+        self.AddGlobalCov(covMatrix)
+            
+        
+    def AddGaussianVariations(self, inputdfs, var, weight_names, Nstart, Nvar):
         keys=self.templates.keys()
         temp=list(self.templates.values())[0]
         dfs = [inputdfs[key] for key in keys]
@@ -216,14 +274,36 @@ class ModelBuilder:
         varMatrix=[]
         for key in keys:
             self.templates[key].add_gaussian_variation(inputdfs[key], var, 
-                    nominal_weight, new_weight, Nvar, total_weight)
-        for i in range(0,Nvar):
+                    nominal_weight, new_weight, Nstart, Nvar, total_weight)
+        for i in range(Nstart, Nstart+Nvar):
             row = np.concatenate([Hist1d( bins=temp._hist.num_bins, range=temp._range, data=df[var],
             weights=df['{}_{}'.format(new_weight,i)]*df[total_weight]/df[nominal_weight]).bin_counts for df in dfs])
             varMatrix.append(row)
         varMatrix=np.array(varMatrix)
         covMatrix=np.matmul((varMatrix-hnom).T,(varMatrix-hnom))/Nvar
         self.AddGlobalCov(covMatrix)
+        
+    def AddGaussianVariations2D(self, inputdfs, var, weight_names, Nstart, Nvar):
+        keys=self.templates.keys()
+        temp=list(self.templates.values())[0]
+        dfs = [inputdfs[key] for key in keys]
+        nominal_weight=weight_names['nominal_weight']
+        total_weight=weight_names['total_weight']
+        new_weight=weight_names['new_weight']
+        hnom = np.concatenate([Hist2d( bins=temp._hist.num_bins, range=temp._range, data=[df[var[0]],df[var[1]]],
+            weights=df[total_weight]).bin_counts.flatten() for df in dfs])
+        varMatrix=[]
+        for key in keys:
+            self.templates[key].add_gaussian_variation(inputdfs[key], var,
+                    nominal_weight, new_weight, Nstart, Nvar, total_weight)
+        for i in range(Nstart, Nstart+Nvar):
+            row = np.concatenate([Hist2d( bins=temp._hist.num_bins, range=temp._range, data=[df[var[0]],df[var[1]]],
+            weights=df['{}_{}'.format(new_weight,i)]*df[total_weight]/df[nominal_weight]).bin_counts.flatten() for df in dfs])
+            varMatrix.append(row)
+        varMatrix=np.array(varMatrix)
+        covMatrix=np.matmul((varMatrix-hnom).T,(varMatrix-hnom))/Nvar
+        self.AddGlobalCov(covMatrix)
+        
 
     def _create_block_diag_inv_corr_mat(self):
         if len(self.global_covs) == 0:

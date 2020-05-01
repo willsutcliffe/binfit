@@ -47,6 +47,8 @@ class Template2d(SingleTemplate):
         self.y_pretty_var = y_pretty_var
         self.color = color
         self.pretty_label = pretty_label
+        
+
 
     def _init_params(self):
         """ Add parameters for the template """
@@ -60,56 +62,58 @@ class Template2d(SingleTemplate):
         return([self.name])
 
 
-    def add_variation(self, data, var, weights_up, weights_down, total_weight=None, nominal_weight=None):
+    def add_variation(self, data, vars, weights_up, weights_down, total_weight=None, nominal_weight=None):
         """Add a new covariance matrix from a given systematic variation
         of the underlying histogram to the template."""
+
         if (total_weight==None or nominal_weight==None):
+            
             hup = Hist2d(
-                bins=self._hist.num_bins, range=self._range, data=data[var], weights=data[weights_up]
+                bins=self._hist.num_bins, range=self._range, data=[data[vars[0]], data[vars[1]]], weights=data[weights_up]
             )
             hdown = Hist2d(
-                bins=self._hist.num_bins, range=self._range, data=data[var], weights=data[weights_down]
+                bins=self._hist.num_bins, range=self._range, data=[data[vars[0]], data[vars[1]]], weights=data[weights_down]
             )
         else:
             hup = Hist2d(
-                bins=self._hist.num_bins, range=self._range, data=data[var],
+                bins=self._hist.num_bins, range=self._range, data=[data[vars[0]], data[vars[1]]],
                 weights=data[weights_up]*data[total_weight]/data[nominal_weight]
             )
             hdown = Hist2d(
-                bins=self._hist.num_bins, range=self._range, data=data[var],
+                bins=self._hist.num_bins, range=self._range, data=[data[vars[0]], data[vars[1]]],
                 weights=data[weights_down]*data[total_weight]/data[nominal_weight]
             )
         self._add_cov_mat_up_down(hup, hdown)
 
-    def add_gaussian_variation(self, data, var, nominal_weight, new_weight, Nweights=None , total_weight=None):
+    def add_gaussian_variation(self, data, vars, nominal_weight, new_weight, Nstart=None, Nweights=None , total_weight=None):
         """Add a new covariance matrix from a given systematic variation
         of the underlying histogram to the template."""
         if Nweights==None:
             Nweights = len([col for col in data.columns if new_weight in col])
         if total_weight == None:
             nominal = Hist2d(
-            bins=self._hist.num_bins, range=self._range, data=data[var], weights=data[nominal_weight]
+            bins=self._hist.num_bins, range=self._range, data=[data[vars[0]], data[vars[1]]], weights=data[nominal_weight]
             ).bin_counts
-            bin_counts = np.array([Hist1d(
-            bins=self._hist.num_bins, range=self._range, data=data[var],
-            weights=data['{}_{}'.format(new_weight,i)]).bin_counts for i in range(0,Nweights)])
+            bin_counts = np.array([Hist2d(
+            bins=self._hist.num_bins, range=self._range, data=[data[vars[0]], data[vars[1]]],
+            weights=data['{}_{}'.format(new_weight,i)]).bin_counts for i in range(Nstart,Nstart+Nweights)])
         else:
             nominal = Hist2d(
-            bins=self._hist.num_bins, range=self._range, data=data[var], weights=data[total_weight]
-            ).bin_counts
-            bin_counts = np.array([Hist1d(
-            bins=self._hist.num_bins, range=self._range, data=data[var],
-            weights=data['{}_{}'.format(new_weight,i)]*data[total_weight]/data[nominal_weight]).bin_counts for i in range(0,Nweights)])
-        cov_mat = np.matmult((bin_counts - nominal).T, (bin_counts - nominal))
+            bins=self._hist.num_bins, range=self._range, data=[data[vars[0]], data[vars[1]]], weights=data[total_weight]
+            ).bin_counts.flatten()
+            bin_counts = np.array([Hist2d(
+            bins=self._hist.num_bins, range=self._range, data=[data[vars[0]], data[vars[1]]],
+            weights=data['{}_{}'.format(new_weight,i)]*data[total_weight]/data[nominal_weight]).bin_counts.flatten() for i in range(Nstart, Nstart+Nweights)])
+        cov_mat = np.matmul((bin_counts - nominal).T, (bin_counts - nominal))/Nweights
         self._add_cov_mat(cov_mat)
 
 
-    def add_singlepar_variation(self, data, weights_up, weights_down,name):
+    def add_singlepar_variation(self, data, vars, weights_up, weights_down, name):
         hup = Hist2d(
-            bins=self._hist.num_bins, range=self._range, data=data, weights=weights_up
+            bins=self._hist.num_bins, range=self._range, data=[data[vars[0]], data[vars[1]]], weights=weights_up
         )
         hdown = Hist2d(
-            bins=self._hist.num_bins, range=self._range, data=data, weights=weights_down
+            bins=self._hist.num_bins, range=self._range, data=[data[vars[0]], data[vars[1]]], weights=weights_down
         )
         self._upvars.append(list(hup.bin_counts.flatten()-self._flat_bin_counts))
         self._downvars.append(list(hdown.bin_counts.flatten()-self._flat_bin_counts))
@@ -120,6 +124,9 @@ class Template2d(SingleTemplate):
         else:
            self._sys_par_indices.append(self._params.getIndex(name))    
         self._fraction_function = self.bin_fractions_with_sys
+        
+    def add_cov(self, cov):
+        self._add_cov_mat(cov)
 
     def plot_on(self, fig, ax):
         """Plots the 2d template on the given axis.

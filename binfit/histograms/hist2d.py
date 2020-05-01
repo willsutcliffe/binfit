@@ -39,22 +39,21 @@ class Hist2d(AbstractHist):
             self._range = tuple(map(get_bin_range, bins))
 
     def fill(self, data, weights=None):
+
         if weights is None:
             weights = np.ones(len(data[0]))
         if isinstance(weights, list):
             weights = np.array(weights)
 
         self._bin_counts += binned_statistic_2d(
-            x=data[0], y=data[1], values=weights, statistic="sum", bins=self._bin_edges
-        )[0]
+            x=data[0], y=data[1], values=weights, statistic="sum", bins=self._bin_edges)[0]
 
         self._bin_errors_sq += binned_statistic_2d(
             x=data[0],
             y=data[1],
             values=weights ** 2,
             statistic="sum",
-            bins=self._bin_edges,
-        )[0]
+            bins=self._bin_edges)[0]
         self._is_empty = False
 
     @classmethod

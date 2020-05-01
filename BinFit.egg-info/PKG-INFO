@@ -1,0 +1,11 @@
+Metadata-Version: 1.0
+Name: BinFit
+Version: 0.0.0
+Summary:  Perform extended binnend log-likelhood fits using histogram templates as pdfs.
+                 Rewrite of the original TemplateFitter of Maximilian Welsch
+Home-page: https://gitlab.ekp.kit.edu/sutclw/BinFit
+Author: Maximilian Welsch, William Sutcliffe, Felix Metner
+Author-email: UNKNOWN
+License: UNKNOWN
+Description: UNKNOWN
+Platform: UNKNOWN
