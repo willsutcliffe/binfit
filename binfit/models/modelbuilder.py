@@ -210,9 +210,9 @@ class ModelBuilder:
         dfs = [inputdfs[key] for key in keys]
         total_weight=weight_names['total_weight']
         ntrack_names=weight_names['ntrack_names']
-        hnom = np.concatenate([Hist1d( bins=temp._hist.num_bins, range=temp._range, data=df[var], weights=df[total_weight]).bin_counts for df in dfs])
-        hup = np.concatenate([Hist1d( bins=temp._hist.num_bins, range=temp._range, data=df[var], weights=df[total_weight]* (1 +  df[ntrack_names]*error_per_trk)).bin_counts for df in dfs])
-        hdown = np.concatenate([Hist1d( bins=temp._hist.num_bins, range=temp._range, data=df[var], weights=df[total_weight]* (1 -  df[ntrack_names]*error_per_trk)).bin_counts for df in dfs])
+        hnom = np.concatenate([Hist1d( bins=temp.bin_edges(), data=df[var], weights=df[total_weight]).bin_counts for df in dfs])
+        hup = np.concatenate([Hist1d( bins=temp.bin_edges(), data=df[var], weights=df[total_weight]* (1 +  df[ntrack_names]*error_per_trk)).bin_counts for df in dfs])
+        hdown = np.concatenate([Hist1d( bins=temp.bin_edges(), data=df[var], weights=df[total_weight]* (1 -  df[ntrack_names]*error_per_trk)).bin_counts for df in dfs])
         covMatrix=get_systematic_cov_mat(hnom, hup, hdown)
         self.AddGlobalCov(covMatrix)
         
@@ -222,9 +222,9 @@ class ModelBuilder:
         dfs = [inputdfs[key] for key in keys]
         total_weight=weight_names['total_weight']
         ntrack_names=weight_names['ntrack_names']
-        hnom = np.concatenate([Hist2d( bins=temp._hist.num_bins, range=temp._range, data=[df[var[0]],df[var[1]]], weights=df[total_weight]).bin_counts for df in dfs])
-        hup = np.concatenate([Hist2d( bins=temp._hist.num_bins, range=temp._range, data=[df[var[0]],df[var[1]]], weights=df[total_weight]* (1 +  df[ntrack_names]*error_per_trk)).bin_counts for df in dfs])
-        hdown = np.concatenate([Hist2d( bins=temp._hist.num_bins, range=temp._range, data=[df[var[0]],df[var[1]]], weights=df[total_weight]* (1 -  df[ntrack_names]*error_per_trk)).bin_counts for df in dfs])
+        hnom = np.concatenate([Hist2d( bins=temp.bin_edges(), data=[df[var[0]],df[var[1]]], weights=df[total_weight]).bin_counts for df in dfs])
+        hup = np.concatenate([Hist2d( bins=temp.bin_edges(), data=[df[var[0]],df[var[1]]], weights=df[total_weight]* (1 +  df[ntrack_names]*error_per_trk)).bin_counts for df in dfs])
+        hdown = np.concatenate([Hist2d( bins=temp.bin_edges(), data=[df[var[0]],df[var[1]]], weights=df[total_weight]* (1 -  df[ntrack_names]*error_per_trk)).bin_counts for df in dfs])
         covMatrix=get_systematic_cov_mat(hnom, hup, hdown)
         self.AddGlobalCov(covMatrix)
         
@@ -236,10 +236,10 @@ class ModelBuilder:
         nominal_weight=weight_names['nominal_weight']
         total_weight=weight_names['total_weight']
         new_weight=weight_names['new_weight']
-        hnom = np.concatenate([Hist1d( bins=temp._hist.num_bins, range=temp._range, data=df[var], weights=df[total_weight]).bin_counts for df in dfs])
+        hnom = np.concatenate([Hist1d( bins=temp.bin_edges(), data=df[var], weights=df[total_weight]).bin_counts for df in dfs])
         varMatrix=[]
         for i in range(Nstart, Nvar+Nstart):
-            row = np.concatenate([Hist1d( bins=temp._hist.num_bins, range=temp._range, data=df[var], weights=df['{}_{}'.format(new_weight,i)]*df[total_weight]/df[nominal_weight]).bin_counts for df in dfs])
+            row = np.concatenate([Hist1d( bins=temp.bin_edges(), data=df[var], weights=df['{}_{}'.format(new_weight,i)]*df[total_weight]/df[nominal_weight]).bin_counts for df in dfs])
             varMatrix.append(row)
         varMatrix=np.array(varMatrix)
         covMatrix=np.matmul((varMatrix-hnom).T,(varMatrix-hnom))/Nvar
@@ -252,10 +252,10 @@ class ModelBuilder:
         nominal_weight=weight_names['nominal_weight']
         total_weight=weight_names['total_weight']
         new_weight=weight_names['new_weight']
-        hnom = np.concatenate([Hist2d( bins=temp._hist.num_bins, range=temp._range, data=[df[var[0]],df[var[1]]], weights=df[total_weight]).bin_counts.flatten() for df in dfs])
+        hnom = np.concatenate([Hist2d( bins=temp.bin_edges(), data=[df[var[0]],df[var[1]]], weights=df[total_weight]).bin_counts.flatten() for df in dfs])
         varMatrix=[]
         for i in range(Nstart, Nvar+Nstart):
-            row = np.concatenate([Hist2d( bins=temp._hist.num_bins, range=temp._range, data=[df[var[0]],df[var[1]]], weights=df['{}_{}'.format(new_weight,i)]*df[total_weight]/df[nominal_weight]).bin_counts.flatten() for df in dfs])
+            row = np.concatenate([Hist2d( bins=temp.bin_edges(), data=[df[var[0]],df[var[1]]], weights=df['{}_{}'.format(new_weight,i)]*df[total_weight]/df[nominal_weight]).bin_counts.flatten() for df in dfs])
             varMatrix.append(row)
         varMatrix=np.array(varMatrix)
         covMatrix=np.matmul((varMatrix-hnom).T,(varMatrix-hnom))/Nvar
@@ -269,14 +269,14 @@ class ModelBuilder:
         nominal_weight=weight_names['nominal_weight']
         total_weight=weight_names['total_weight']
         new_weight=weight_names['new_weight']
-        hnom = np.concatenate([Hist1d( bins=temp._hist.num_bins, range=temp._range, data=df[var],
+        hnom = np.concatenate([Hist1d( bins=temp.bin_edges(), data=df[var],
             weights=df[total_weight]).bin_counts for df in dfs])
         varMatrix=[]
         for key in keys:
             self.templates[key].add_gaussian_variation(inputdfs[key], var, 
                     nominal_weight, new_weight, Nstart, Nvar, total_weight)
         for i in range(Nstart, Nstart+Nvar):
-            row = np.concatenate([Hist1d( bins=temp._hist.num_bins, range=temp._range, data=df[var],
+            row = np.concatenate([Hist1d( bins=temp.bin_edges(), data=df[var],
             weights=df['{}_{}'.format(new_weight,i)]*df[total_weight]/df[nominal_weight]).bin_counts for df in dfs])
             varMatrix.append(row)
         varMatrix=np.array(varMatrix)
@@ -290,14 +290,14 @@ class ModelBuilder:
         nominal_weight=weight_names['nominal_weight']
         total_weight=weight_names['total_weight']
         new_weight=weight_names['new_weight']
-        hnom = np.concatenate([Hist2d( bins=temp._hist.num_bins, range=temp._range, data=[df[var[0]],df[var[1]]],
+        hnom = np.concatenate([Hist2d( bins=temp.bin_edges(), data=[df[var[0]],df[var[1]]],
             weights=df[total_weight]).bin_counts.flatten() for df in dfs])
         varMatrix=[]
         for key in keys:
             self.templates[key].add_gaussian_variation(inputdfs[key], var,
                     nominal_weight, new_weight, Nstart, Nvar, total_weight)
         for i in range(Nstart, Nstart+Nvar):
-            row = np.concatenate([Hist2d( bins=temp._hist.num_bins, range=temp._range, data=[df[var[0]],df[var[1]]],
+            row = np.concatenate([Hist2d( bins=temp.bin_edges(), data=[df[var[0]],df[var[1]]],
             weights=df['{}_{}'.format(new_weight,i)]*df[total_weight]/df[nominal_weight]).bin_counts.flatten() for df in dfs])
             varMatrix.append(row)
         varMatrix=np.array(varMatrix)

@@ -65,18 +65,18 @@ class Template1d(SingleTemplate):
         of the underlying histogram to the template."""
         if (total_weight==None or nominal_weight==None):
             hup = Hist1d(
-                bins=self._hist.num_bins, range=self._range, data=data[var], weights=data[weights_up]
+                bins = self.bin_edges(), data=data[var], weights=data[weights_up]
             )
             hdown = Hist1d(
-                bins=self._hist.num_bins, range=self._range, data=data[var], weights=data[weights_down]
+                bins = self.bin_edges(), data=data[var], weights=data[weights_down]
             )
         else:
             hup = Hist1d(
-                bins=self._hist.num_bins, range=self._range, data=data[var],
+                bins = self.bin_edges(), data=data[var],
                 weights=data[weights_up]*data[total_weight]/data[nominal_weight]
             )
             hdown = Hist1d(
-                bins=self._hist.num_bins, range=self._range, data=data[var],
+                bins = self.bin_edges(), data=data[var],
                 weights=data[weights_down]*data[total_weight]/data[nominal_weight]
             )
         self._add_cov_mat_up_down(hup, hdown)
@@ -88,17 +88,17 @@ class Template1d(SingleTemplate):
             Nweights = len([col for col in data.columns if new_weight in col])
         if total_weight == None:
             nominal = Hist1d(
-            bins=self._hist.num_bins, range=self._range, data=data[var], weights=data[nominal_weight]
+            bins = self.bin_edges(), data=data[var], weights=data[nominal_weight]
             ).bin_counts
             bin_counts = np.array([Hist1d(
-            bins=self._hist.num_bins, range=self._range, data=data[var],
+            bins = self.bin_edges(), data=data[var],
             weights=data['{}_{}'.format(new_weight,i)]).bin_counts for i in range(Nstart, Nweights+Nstart)])
         else:
             nominal = Hist1d(
-            bins=self._hist.num_bins, range=self._range, data=data[var], weights=data[total_weight]
+            bins = self.bin_edges(), data=data[var], weights=data[total_weight]
             ).bin_counts
             bin_counts = np.array([Hist1d(
-            bins=self._hist.num_bins, range=self._range, data=data[var],
+            bins = self.bin_edges(), data=data[var],
             weights=data['{}_{}'.format(new_weight,i)]*data[total_weight]/data[nominal_weight]).bin_counts for i in range(Nstart,Nweights+Nstart)])
         cov_mat = np.matmul((bin_counts - nominal).T, (bin_counts - nominal))/Nweights
         self._add_cov_mat(cov_mat)
@@ -107,10 +107,10 @@ class Template1d(SingleTemplate):
         """Add a new covariance matrix from a given systematic variation
         of the underlying histogram to the template."""
         hup = Hist1d(
-            bins=self._hist.num_bins, range=self._range, data=data, weights=weights_up
+            bins = self.bin_edges(), data=data, weights=weights_up
         )
         hdown = Hist1d(
-            bins=self._hist.num_bins, range=self._range, data=data, weights=weights_down
+            bins = self.bin_edges(), data=data, weights=weights_down
         )
         self._upvars.append(list(hup.bin_counts.flatten()-self._flat_bin_counts))
         self._downvars.append(list(hdown.bin_counts.flatten()-self._flat_bin_counts))

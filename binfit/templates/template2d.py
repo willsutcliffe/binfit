@@ -69,18 +69,18 @@ class Template2d(SingleTemplate):
         if (total_weight==None or nominal_weight==None):
             
             hup = Hist2d(
-                bins=self._hist.num_bins, range=self._range, data=[data[vars[0]], data[vars[1]]], weights=data[weights_up]
+                bins = self.bin_edges(), data=[data[vars[0]], data[vars[1]]], weights=data[weights_up]
             )
             hdown = Hist2d(
-                bins=self._hist.num_bins, range=self._range, data=[data[vars[0]], data[vars[1]]], weights=data[weights_down]
+                bins = self.bin_edges(), data=[data[vars[0]], data[vars[1]]], weights=data[weights_down]
             )
         else:
             hup = Hist2d(
-                bins=self._hist.num_bins, range=self._range, data=[data[vars[0]], data[vars[1]]],
+                bins = self.bin_edges(), data=[data[vars[0]], data[vars[1]]],
                 weights=data[weights_up]*data[total_weight]/data[nominal_weight]
             )
             hdown = Hist2d(
-                bins=self._hist.num_bins, range=self._range, data=[data[vars[0]], data[vars[1]]],
+                bins = self.bin_edges(), data=[data[vars[0]], data[vars[1]]],
                 weights=data[weights_down]*data[total_weight]/data[nominal_weight]
             )
         self._add_cov_mat_up_down(hup, hdown)
@@ -92,17 +92,17 @@ class Template2d(SingleTemplate):
             Nweights = len([col for col in data.columns if new_weight in col])
         if total_weight == None:
             nominal = Hist2d(
-            bins=self._hist.num_bins, range=self._range, data=[data[vars[0]], data[vars[1]]], weights=data[nominal_weight]
+            bins = self.bin_edges(), data=[data[vars[0]], data[vars[1]]], weights=data[nominal_weight]
             ).bin_counts
             bin_counts = np.array([Hist2d(
-            bins=self._hist.num_bins, range=self._range, data=[data[vars[0]], data[vars[1]]],
+            bins = self.bin_edges(), data=[data[vars[0]], data[vars[1]]],
             weights=data['{}_{}'.format(new_weight,i)]).bin_counts for i in range(Nstart,Nstart+Nweights)])
         else:
             nominal = Hist2d(
-            bins=self._hist.num_bins, range=self._range, data=[data[vars[0]], data[vars[1]]], weights=data[total_weight]
+            bins = self.bin_edges(), data=[data[vars[0]], data[vars[1]]], weights=data[total_weight]
             ).bin_counts.flatten()
             bin_counts = np.array([Hist2d(
-            bins=self._hist.num_bins, range=self._range, data=[data[vars[0]], data[vars[1]]],
+            bins = self.bin_edges(), data=[data[vars[0]], data[vars[1]]],
             weights=data['{}_{}'.format(new_weight,i)]*data[total_weight]/data[nominal_weight]).bin_counts.flatten() for i in range(Nstart, Nstart+Nweights)])
         cov_mat = np.matmul((bin_counts - nominal).T, (bin_counts - nominal))/Nweights
         self._add_cov_mat(cov_mat)
@@ -110,10 +110,10 @@ class Template2d(SingleTemplate):
 
     def add_singlepar_variation(self, data, vars, weights_up, weights_down, name):
         hup = Hist2d(
-            bins=self._hist.num_bins, range=self._range, data=[data[vars[0]], data[vars[1]]], weights=weights_up
+            bins = self.bin_edges(), data=[data[vars[0]], data[vars[1]]], weights=weights_up
         )
         hdown = Hist2d(
-            bins=self._hist.num_bins, range=self._range, data=[data[vars[0]], data[vars[1]]], weights=weights_down
+            bins = self.bin_edges(), data=[data[vars[0]], data[vars[1]]], weights=weights_down
         )
         self._upvars.append(list(hup.bin_counts.flatten()-self._flat_bin_counts))
         self._downvars.append(list(hdown.bin_counts.flatten()-self._flat_bin_counts))
