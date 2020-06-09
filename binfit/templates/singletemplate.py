@@ -89,12 +89,12 @@ class SingleTemplate(AbstractTemplate,ABC):
 
 
     def bin_fractions(self):
-            per_bin_yields =   self._flat_bin_counts * (1. + self._params.getParametersbyIndex([self._bin_par_indices]) * self._relative_errors) 
+            per_bin_yields =   self._flat_bin_counts * (1. + self._params.getParametersbyIndex(self._bin_par_indices) * self._relative_errors)
             return per_bin_yields / np.sum(per_bin_yields)
 
     def bin_fractions_with_sys(self):
-            per_bin_yields =  self._flat_bin_counts * (1. + self._params.getParametersbyIndex([self._bin_par_indices]) * self._relative_errors)
-            sys_pars = self._params.getParametersbyIndex([self._sys_par_indices])[:,np.newaxis]
+            per_bin_yields =  self._flat_bin_counts * (1. + self._params.getParametersbyIndex(self._bin_par_indices) * self._relative_errors)
+            sys_pars = self._params.getParametersbyIndex(self._sys_par_indices)[:,np.newaxis]
             uperrs =  sys_pars*(sys_pars>0)*self._upvars
             downerrs = sys_pars*(sys_pars<0)*self._downvars
             sys_corr = np.product(uperrs+downerrs+1,axis=0)

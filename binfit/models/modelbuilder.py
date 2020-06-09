@@ -187,7 +187,7 @@ class ModelBuilder:
 
 
     def xexpected(self):
-        yields = self.params.getParametersbyIndex([self.yieldindices])
+        yields = self.params.getParametersbyIndex(self.yieldindices)
         fractions_per_template = np.array(
             [template.fractions() for template
              in self.templates.values()]
@@ -340,7 +340,7 @@ class ModelBuilder:
 
     @jit(forceobj=True)
     def _con_term(self):
-        conpars = self.params.getParametersbyIndex([self.conindices])
+        conpars = self.params.getParametersbyIndex(self.conindices)
         v = conpars - self.convalue
         return(v @ self.inverseconcov @ v)
 
@@ -396,7 +396,7 @@ class ModelBuilder:
 
         colors = [template.color for template in self.plottemplates.values()]
         allyields = self.params.getParametersbyIndex(self.yieldindices).reshape(self.num_templates,1)
-        yields = self.params.getParametersbyIndex([self.plotyieldindices])
+        yields = self.params.getParametersbyIndex(self.plotyieldindices)
         sub_pars = self.params.getParametersbyIndex(self.subfraction_indices).reshape(self.num_fractions,1)
         bin_pars = self.params.getParametersbySlice(self.bin_par_slice).reshape(self.shape)
         sub_fractions = np.matmul(self.convertermatrix,sub_pars) + self.convertervector
