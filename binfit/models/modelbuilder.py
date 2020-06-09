@@ -101,20 +101,16 @@ class ModelBuilder:
              in self.templates.values()]
         
         self.template_errors = np.stack(errors_per_template)
-        
-    def UpErrors(self):
-        """ Creates the fixed template stack """
-        up_errors =  [template.get_nup_vars() for template
-             in self.templates.values()]
-        
-        self.up_errors = np.stack(up_errors)
 
-    def DownErrors(self):
-        """ Creates the fixed template stack """
-        down_errors =  [template.get_ndown_vars() for template
-             in self.templates.values()]
-        
-        self.down_errors = np.stack(down_errors)
+    @property
+    def up_errors(self):
+        """Property that returns upwards errors"""
+        return np.stack([template.get_nup_vars() for template in self.templates.values()])
+
+    @property
+    def down_errors(self):
+        """Property that returns downwards errors"""
+        return np.stack([template.get_ndown_vars() for template in self.templates.values()])
 
     def InitialiseBinPars(self):
         """ Add parameters for the template """
