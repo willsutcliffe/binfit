@@ -129,7 +129,7 @@ class ModelBuilder:
             bin_par_indices += temp_bin_par_indices
         self.bin_par_slice = (bin_par_indices[0],bin_par_indices[-1]+1)
 
-    @jit
+    @jit(forceobj=True)
     def ExpectedEventsPerBin(self,bin_pars,yields,sub_pars):
         #sys_pars = self.params.getParametersbyIndex(self.sys_pars)
         # compute the up and down errors for single par varaitions
@@ -334,48 +334,46 @@ class ModelBuilder:
         return(block_diag(*self.concov))
 
 
-    @jit
+    @jit(forceobj=True)
     def _nocon_term(self):
-        return(0.)
+        return 0.
 
-    @jit
+    @jit(forceobj=True)
     def _con_term(self):
         conpars = self.params.getParametersbyIndex([self.conindices])
         v = conpars - self.convalue
         return(v @ self.inverseconcov @ v)
 
-    @jit
-    def _gauss_term(self,bin_pars):
+    @jit(forceobj=True)
+    def _gauss_term(self, bin_pars):
         return (bin_pars @ self._inv_corr @ bin_pars)
 
 
 
-    @jit
-    def chi2(self,pars):
+    @jit(forceobj=True)
+    def chi2(self, pars):
         self.params.setParameters(pars)
-        yields = self.params.getParametersbyIndex(self.yieldindices).reshape(self.num_templates,1)
-        sub_pars = self.params.getParametersbyIndex(self.subfraction_indices).reshape(self.num_fractions,1)
+        yields = self.params.getParametersbyIndex(self.yieldindices).reshape(self.num_templates, 1)
+        sub_pars = self.params.getParametersbyIndex(self.subfraction_indices).reshape(self.num_fractions, 1)
         bin_pars = self.params.getParametersbySlice(self.bin_par_slice)
-        chi2 = self.chi2_compute(bin_pars,yields,sub_pars)
+        chi2 = self.chi2_compute(bin_pars, yields, sub_pars)
         return(chi2)
 
-    @jit
-    def chi2_compute(self,bin_pars,yields,sub_pars):
-        chi2data = np.sum((self.ExpectedEventsPerBin(bin_pars.reshape(self.shape),yields,sub_pars) - self.xobs) ** 2 / (2 * self.xobserrors**2)) 
+    @jit(forceobj=True)
+    def chi2_compute(self, bin_pars, yields, sub_pars):
+        chi2data = np.sum((self.ExpectedEventsPerBin(bin_pars.reshape(self.shape), yields, sub_pars) - self.xobs) ** 2 / (2 * self.xobserrors**2))
         chi2 = chi2data + self._gauss_term(bin_pars) + self.confunc()
         return(chi2)
     
-    @jit
-    def NLL(self,pars):
+    @jit(forceobj=True)
+    def NLL(self, pars):
         self.params.setParameters(pars)
-        yields = self.params.getParametersbyIndex(self.yieldindices).reshape(self.num_templates,1)
-        sub_pars = self.params.getParametersbyIndex(self.subfraction_indices).reshape(self.num_fractions,1)
+        yields = self.params.getParametersbyIndex(self.yieldindices).reshape(self.num_templates, 1)
+        sub_pars = self.params.getParametersbyIndex(self.subfraction_indices).reshape(self.num_fractions, 1)
         bin_pars = self.params.getParametersbySlice(self.bin_par_slice)
-        exp_evts_per_bin = self.ExpectedEventsPerBin(bin_pars.reshape(self.shape),yields,sub_pars)
-        poisson_term = np.sum(exp_evts_per_bin - self.xobs-
-                              xlogyx(self.xobs, exp_evts_per_bin))
-        
-        NLL = poisson_term  + (self._gauss_term(bin_pars) + self.confunc()) /2.
+        exp_evts_per_bin = self.ExpectedEventsPerBin(bin_pars.reshape(self.shape), yields, sub_pars)
+        poisson_term = np.sum(exp_evts_per_bin - self.xobs - xlogyx(self.xobs, exp_evts_per_bin))
+        NLL = poisson_term + (self._gauss_term(bin_pars) + self.confunc()) / 2.
         return(NLL)
 
 
