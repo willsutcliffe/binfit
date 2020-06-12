@@ -62,7 +62,7 @@ class ModelBuilder:
            else:
               self.yieldindices.append(value)
               self.plotyieldindices.append(value)
-           
+
 
         if self._dim == None:
             self._dim = len(template.bins)
@@ -147,7 +147,114 @@ class ModelBuilder:
         # get sub template fractions into the correct form with the converter and additive part
         # normalised expected corrected fractions
         # determine expected amount of events in each bin
+
+    @jit(forceobj=True)
+    def ComputeExpectedEventsCovariance(self, bin_pars, yields, sub_pars, bin_par_cov, useToys=True, Nvars=10000):
+        """
+        This routine will propagate the covariance of
+        the bin parameters to the covariance of the
+        final covariance for the expected number of
+        events per bin. The function allows two approaches:
+
+        1) The toy approach
+        -------------------
+
+        This is chosen by default with the boolean useToys.
+        In this appraoch toy variations on the bin_pars are 
+        generated according to their Jacobian.
+
+        2) The Jacobian approach
+        ------------------------
+
+        This approach determines the new covariance matrix, cov,
+        according to the matrix equation J.T bin_par_cov J where 
+        J is the Jacobian for the transformation, which is 
+        implemented according to its analytic form:
+
+          d Nexp_i / d theta_kl, 
+          
+        where i and k run along number of bins and l along templates.
+        The resulting Jacobian has shape (nbins, nbins*ntemps)
+
         
+        Parameters
+        ----------
+
+        bin_pars: np.ndarray
+            numpy array containing the bin_pars
+
+        yields: np.ndarray
+            numpy array containing the yield
+
+        sub_pars: np.ndarray
+            numpy array containing the sub pars
+
+        bin_par_cov: np.ndarray
+            numpy array containing the bin par covariance 
+
+        useToys: bool
+            boolean determining approach Toys or a Jacobian
+            calculation. The default is True meaning toys 
+            are used.
+
+        Nvars: int
+            number of variations used in throwing toys
+
+        """
+        ntemps=bin_pars.shape[0]
+        nbins=bin_pars.shape[1]
+        sub_fractions = np.matmul(self.convertermatrix,sub_pars) + self.convertervector
+
+        if useToys:
+            toy_bin_pars = np.random.multivariate_normal(bin_pars.flatten(),bin_par_cov, Nvars)
+            toy_bin_pars = toy_bin_pars.reshape(Nvars,ntemps,nbins)
+            corrections=1+self.template_errors*toy_bin_pars
+            pdfs = self.template_fractions*corrections
+            normpdfs=pdfs/np.sum(pdfs,2)[:,:,np.newaxis]
+            bin_counts=yields.reshape(1,ntemps,1)*sub_fractions.reshape(1,
+                    ntemps,1)*normpdfs
+            expected_per_bin=np.sum(bin_counts,axis=1)
+            cov = np.cov(expected_per_bin.T)
+        else:
+            corrections = (1+self.template_errors*bin_pars)
+            pdfs = self.template_fractions*corrections
+            norm = np.sum(pdfs,1)[:,np.newaxis]
+            Term1 = yields*sub_fractions*self.template_fractions*self.template_errors/norm
+            Term1 = np.repeat( np.reshape(Term1,(1,ntemps,nbins)) ,nbins,axis=0).reshape(nbins,nbins*ntemps)
+            deltaik =np.repeat(np.eye(nbins)[np.array([range(0,nbins)])],ntemps,axis=1).reshape((nbins,nbins*ntemps))
+            Term1=deltaik*Term1
+            Term2=yields*sub_fractions*pdfs/norm**2
+            Term2=np.repeat(Term2.T,nbins,axis=1)
+            Term2*=np.repeat((self.template_fractions*self.template_errors).reshape((1,nbins*ntemps)),nbins,axis=0)
+            Jacobian=Term1 - Term2
+            cov = cov=np.matmul(Jacobian,np.matmul(bin_par_cov,Jacobian.T))
+        return(cov)
+    
+    @jit(forceobj=True)
+    def ComputeCompatibilityChi2(self, bin_par_cov):
+        """
+        Function computes a compatibility chi2 this 
+        combines the MC expected events covariance 
+        with the covariance matrix for data. The
+        user must supply the binparcov matrix.
+
+        Parameters
+        ----------
+        bin_par_cov: np.ndarray
+            numpy array containing the bin par covariance 
+
+        """
+        yields = self.params.getParametersbyIndex(self.yieldindices).reshape(self.num_templates, 1)
+        sub_pars = self.params.getParametersbyIndex(self.subfraction_indices).reshape(self.num_fractions, 1)
+        bin_pars = self.params.getParametersbySlice(self.bin_par_slice).reshape(self.shape)
+
+        cov_MC = self.ComputeExpectedEventsCovariance(bin_pars, yields, sub_pars, bin_par_cov)
+        cov_data = np.diag(self.xobserrors**2)
+        cov = cov_MC + cov_data
+        diff = self.ExpectedEventsPerBin(bin_pars, yields, sub_pars) - self.xobs
+        chi2 = diff @ np.linalg.inv(cov) @ diff 
+        return(chi2)
+
 
     def FractionConverter(self):
         """ Determines the matrices required to 
@@ -316,7 +423,8 @@ class ModelBuilder:
             global_cov=np.sum(np.array(self.global_covs),axis=0)
             local_cov= block_diag(*cov_mats)
             global_cov=global_cov*(local_cov==0)
-            total_corr=cov2corr(global_cov+local_cov)
+            self.total_cov=global_cov+local_cov
+            total_corr=cov2corr(self.total_cov)
             self._inv_corr = np.linalg.inv(total_corr)
 
 
@@ -470,6 +578,7 @@ class ModelBuilder:
 
         total_uncertainty = np.sqrt(np.sum(uncertainties_sq, axis=0))
         total_bin_count = np.sum(np.array(bin_counts), axis=0)
+        print("total uncertainty", total_uncertainty)
 
         ax[0].bar(
             x=bin_mids[0],
