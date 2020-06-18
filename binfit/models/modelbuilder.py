@@ -45,7 +45,7 @@ class ModelBuilder:
         self.confunc = self._nocon_term
 
     def AddTemplate(self,template,value,create=True, same = True):
-        if(self.num_bins == None):
+        if(self.num_bins is None):
             self.num_bins = template.num_bins
         self.packedtemplates[template.name] = template
         if template._num_templates > 1:
@@ -64,7 +64,7 @@ class ModelBuilder:
               self.plotyieldindices.append(value)
 
 
-        if self._dim == None:
+        if self._dim is None:
             self._dim = len(template.bins)
         self.num_templates = len(self.templates)
 
@@ -417,6 +417,10 @@ class ModelBuilder:
             inv_corr_mats = [template.inv_corr_mat() for template
                          in self.templates.values()]
             self._inv_corr = block_diag(*inv_corr_mats)
+            cov_mats = [template.cov_mat for template
+                         in self.templates.values()]
+            local_cov= block_diag(*cov_mats)
+            self.total_cov=local_cov
         else:
             cov_mats = [template.cov_mat for template
                          in self.templates.values()]
@@ -492,9 +496,38 @@ class ModelBuilder:
             "y": 0
         }
 
+
         return np.sum(bc, axis=x_to_i[ax])
 
-    def plot_stacked_on(self, ax,All=False, customlabels=None, postfiterrors=np.array([]), **kwargs):
+    @staticmethod
+    def _get_projection_jacobian(ax,shape):
+        """
+        Returns the required Jacobian for 
+        a given axis and shape. The funtion
+        only handles the 2D case.
+
+        Parameters
+        ----------
+
+        ax: int
+            integer representing the axis
+
+        shape: tuple
+            tuple with the shape (nx,ny)
+        """
+        nx=shape[0]
+        ny=shape[1]
+
+        if ax=="x":
+            return(np.repeat(np.identity(nx), np.array([ny]*nx),axis=1))
+        elif ax=="y":
+            return(np.repeat(np.eye(ny)[np.array([range(0,ny)])],nx,axis=1).reshape((ny,nx*ny)))
+
+
+
+        return np.sum(bc, axis=x_to_i[ax])
+
+    def plot_stacked_on(self, ax,All=False, customlabels=None, bin_par_cov=None, **kwargs):
 
         bin_mids = [template.bin_mids() for template in self.plottemplates.values()]
         bin_edges = next(iter(self.templates.values())).bin_edges()
@@ -564,19 +597,23 @@ class ModelBuilder:
         #uncertainties_sq = [ (tempyield*template.fractions()*template.errors()).reshape(template.shape())** 2 for tempyield,template in
         #                    zip(yields,self.plottemplates.values())]
 
-        if len(postfiterrors) == 0:
-            uncertainties_sq = (allyields*sub_fractions*norm_pdfs*self.template_errors)**2
-        else:
-            binparpostfiterrs=postfiterrors[self.bin_par_slice[0]:self.bin_par_slice[1]]
-            binparpostfiterrs=binparpostfiterrs.reshape(self.template_errors.shape)
-            uncertainties_sq = (allyields*sub_fractions*norm_pdfs*binparpostfiterrs*self.template_errors)**2
+        if bin_par_cov is  None:
+            bin_par_cov = cov2corr(self.total_cov)
+            
+        print('shape of bin par cov ', bin_par_cov.shape)
+        expected_event_cov = self.ComputeExpectedEventsCovariance(bin_pars, allyields, sub_pars, bin_par_cov, useToys=False)
+        total_uncertainty = np.sqrt(np.diag(expected_event_cov))
+
 
         if self._dim > 1:
-            uncertainties_sq = [
-                self._get_projection(kwargs["projection"], unc_sq) for unc_sq in uncertainties_sq
-            ]
+            J = self._get_projection_jacobian(kwargs["projection"], bin_counts.shape)
+            projection_cov = np.matmul(J,np.matmul(expected_event_cov,J.T))
+            total_uncertainty = np.sqrt(np.diag(projection_cov))
 
-        total_uncertainty = np.sqrt(np.sum(uncertainties_sq, axis=0))
+            #uncertainties_sq = [
+            #    self._get_projection(kwargs["projection"], unc_sq) for unc_sq in uncertainties_sq
+            #]
+
         total_bin_count = np.sum(np.array(bin_counts), axis=0)
         print("total uncertainty", total_uncertainty)
 
