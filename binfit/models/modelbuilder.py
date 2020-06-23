@@ -149,7 +149,7 @@ class ModelBuilder:
         # determine expected amount of events in each bin
 
     @jit(forceobj=True)
-    def ComputeExpectedEventsCovariance(self, bin_pars, yields, sub_pars, bin_par_cov, useToys=True, Nvars=10000):
+    def compute_expected_events_cov(self, bin_pars, yields, sub_pars, bin_par_cov, useToys=True, Nvars=10000):
         """
         This routine will propagate the covariance of
         the bin parameters to the covariance of the
@@ -201,37 +201,37 @@ class ModelBuilder:
             number of variations used in throwing toys
 
         """
-        ntemps=bin_pars.shape[0]
-        nbins=bin_pars.shape[1]
-        sub_fractions = np.matmul(self.convertermatrix,sub_pars) + self.convertervector
+        ntemps = bin_pars.shape[0]
+        nbins = bin_pars.shape[1]
+        sub_fractions = np.matmul(self.convertermatrix, sub_pars) + self.convertervector
 
         if useToys:
-            toy_bin_pars = np.random.multivariate_normal(bin_pars.flatten(),bin_par_cov, Nvars)
-            toy_bin_pars = toy_bin_pars.reshape(Nvars,ntemps,nbins)
-            corrections=1+self.template_errors*toy_bin_pars
-            pdfs = self.template_fractions*corrections
-            normpdfs=pdfs/np.sum(pdfs,2)[:,:,np.newaxis]
-            bin_counts=yields.reshape(1,ntemps,1)*sub_fractions.reshape(1,
-                    ntemps,1)*normpdfs
-            expected_per_bin=np.sum(bin_counts,axis=1)
+            toy_bin_pars = np.random.multivariate_normal(bin_pars.flatten(), bin_par_cov, Nvars)
+            toy_bin_pars = toy_bin_pars.reshape(Nvars, ntemps, nbins)
+            corrections = 1 + self.template_errors * toy_bin_pars
+            pdfs = self.template_fractions * corrections
+            normpdfs = pdfs / np.sum(pdfs, 2)[:, :, np.newaxis]
+            bin_counts=yields.reshape(1, ntemps, 1) * sub_fractions.reshape(1, 
+                    ntemps, 1) * normpdfs
+            expected_per_bin = np.sum(bin_counts, axis=1)
             cov = np.cov(expected_per_bin.T)
         else:
-            corrections = (1+self.template_errors*bin_pars)
-            pdfs = self.template_fractions*corrections
-            norm = np.sum(pdfs,1)[:,np.newaxis]
-            Term1 = yields*sub_fractions*self.template_fractions*self.template_errors/norm
-            Term1 = np.repeat( np.reshape(Term1,(1,ntemps,nbins)) ,nbins,axis=0).reshape(nbins,nbins*ntemps)
-            deltaik =np.repeat(np.eye(nbins)[np.array([range(0,nbins)])],ntemps,axis=1).reshape((nbins,nbins*ntemps))
-            Term1=deltaik*Term1
-            Term2=yields*sub_fractions*pdfs/norm**2
-            Term2=np.repeat(Term2.T,nbins,axis=1)
-            Term2*=np.repeat((self.template_fractions*self.template_errors).reshape((1,nbins*ntemps)),nbins,axis=0)
-            Jacobian=Term1 - Term2
+            corrections = (1 + self.template_errors * bin_pars)
+            pdfs = self.template_fractions * corrections
+            norm = np.sum(pdfs, 1)[:,np.newaxis]
+            Term1 = yields * sub_fractions * self.template_fractions * self.template_errors / norm
+            Term1 = np.repeat( np.reshape(Term1,(1, ntemps, nbins)) ,nbins, axis=0).reshape(nbins, nbins * ntemps)
+            deltaik = np.repeat(np.eye(nbins)[np.array([range(0,nbins)])], ntemps, axis=1).reshape((nbins, nbins * ntemps))
+            Term1 = deltaik * Term1
+            Term2 = yields * sub_fractions * pdfs / norm**2
+            Term2 = np.repeat(Term2.T, nbins, axis=1)
+            Term2 *= np.repeat((self.template_fractions*self.template_errors).reshape((1,nbins*ntemps)),nbins,axis=0)
+            Jacobian= Term1 - Term2
             cov = cov=np.matmul(Jacobian,np.matmul(bin_par_cov,Jacobian.T))
         return(cov)
     
     @jit(forceobj=True)
-    def ComputeCompatibilityChi2(self, bin_par_cov):
+    def compute_compatibility_chi2(self, bin_par_cov):
         """
         Function computes a compatibility chi2 this 
         combines the MC expected events covariance 
@@ -248,7 +248,7 @@ class ModelBuilder:
         sub_pars = self.params.getParametersbyIndex(self.subfraction_indices).reshape(self.num_fractions, 1)
         bin_pars = self.params.getParametersbySlice(self.bin_par_slice).reshape(self.shape)
 
-        cov_MC = self.ComputeExpectedEventsCovariance(bin_pars, yields, sub_pars, bin_par_cov)
+        cov_MC = self.compute_expected_events_cov(bin_pars, yields, sub_pars, bin_par_cov)
         cov_data = np.diag(self.xobserrors**2)
         cov = cov_MC + cov_data
         diff = self.ExpectedEventsPerBin(bin_pars, yields, sub_pars) - self.xobs
@@ -515,13 +515,13 @@ class ModelBuilder:
         shape: tuple
             tuple with the shape (nx,ny)
         """
-        nx=shape[0]
-        ny=shape[1]
+        nx = shape[0]
+        ny = shape[1]
 
         if ax=="x":
-            return(np.repeat(np.identity(nx), np.array([ny]*nx),axis=1))
+            return(np.repeat(np.identity(nx), np.array([ny] * nx),axis=1))
         elif ax=="y":
-            return(np.repeat(np.eye(ny)[np.array([range(0,ny)])],nx,axis=1).reshape((ny,nx*ny)))
+            return(np.repeat(np.eye(ny)[np.array([range(0, ny)])], nx, axis=1).reshape((ny, nx * ny)))
 
 
 
@@ -541,7 +541,7 @@ class ModelBuilder:
         sub_pars = self.params.getParametersbyIndex(self.subfraction_indices).reshape(self.num_fractions,1)
         bin_pars = self.params.getParametersbySlice(self.bin_par_slice).reshape(self.shape)
         sub_fractions = np.matmul(self.convertermatrix,sub_pars) + self.convertervector
-        corrections = (1+self.template_errors*bin_pars)
+        corrections = (1 + self.template_errors*bin_pars)
         sub_fractions = np.matmul(self.convertermatrix,sub_pars) + self.convertervector
         pdfs = self.template_fractions*corrections
         norm_pdfs = pdfs/np.sum(pdfs,1)[:,np.newaxis]
@@ -571,8 +571,8 @@ class ModelBuilder:
           bin_mids = [bin_mids[0]]*int(N/num_bins)
 
         if self._dim > 1:
-            bin_counts = [self._get_projection(kwargs["projection"], bc.reshape(shape)) for bc
-                          in bin_counts]
+            bin_counts = np.array([self._get_projection(kwargs["projection"], bc.reshape(shape)) for bc
+                          in bin_counts])
             axis = kwargs["projection"]
             ax_to_index = {
                 "x": 0,
@@ -597,25 +597,23 @@ class ModelBuilder:
         #uncertainties_sq = [ (tempyield*template.fractions()*template.errors()).reshape(template.shape())** 2 for tempyield,template in
         #                    zip(yields,self.plottemplates.values())]
 
-        if bin_par_cov is  None:
+        if bin_par_cov is None:
             bin_par_cov = cov2corr(self.total_cov)
             
-        print('shape of bin par cov ', bin_par_cov.shape)
-        expected_event_cov = self.ComputeExpectedEventsCovariance(bin_pars, allyields, sub_pars, bin_par_cov, useToys=False)
+        expected_event_cov = self.compute_expected_events_covariance(bin_pars, allyields, sub_pars, bin_par_cov, useToys=False)
         total_uncertainty = np.sqrt(np.diag(expected_event_cov))
 
 
         if self._dim > 1:
             J = self._get_projection_jacobian(kwargs["projection"], bin_counts.shape)
-            projection_cov = np.matmul(J,np.matmul(expected_event_cov,J.T))
+            projection_cov = np.matmul(J, np.matmul(expected_event_cov, J.T))
             total_uncertainty = np.sqrt(np.diag(projection_cov))
 
             #uncertainties_sq = [
             #    self._get_projection(kwargs["projection"], unc_sq) for unc_sq in uncertainties_sq
             #]
 
-        total_bin_count = np.sum(np.array(bin_counts), axis=0)
-        print("total uncertainty", total_uncertainty)
+        total_bin_count = np.sum(bin_counts, axis=0)
 
         ax[0].bar(
             x=bin_mids[0],
