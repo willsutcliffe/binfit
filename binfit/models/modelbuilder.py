@@ -149,7 +149,7 @@ class ModelBuilder:
         # determine expected amount of events in each bin
 
     @jit(forceobj=True)
-    def compute_expected_events_cov(self, bin_pars, yields, sub_pars, bin_par_cov, useToys=True, Nvars=10000):
+    def compute_expected_events_cov(self, bin_pars, yields, sub_pars, par_cov, useToys=True, Nvars=1000, noyieldprop = True, seed =0):
         """
         This routine will propagate the covariance of
         the bin parameters to the covariance of the
@@ -167,7 +167,7 @@ class ModelBuilder:
         ------------------------
 
         This approach determines the new covariance matrix, cov,
-        according to the matrix equation J.T bin_par_cov J where 
+        according to the matrix equation J.T par_cov J where 
         J is the Jacobian for the transformation, which is 
         implemented according to its analytic form:
 
@@ -189,7 +189,7 @@ class ModelBuilder:
         sub_pars: np.ndarray
             numpy array containing the sub pars
 
-        bin_par_cov: np.ndarray
+        par_cov: np.ndarray
             numpy array containing the bin par covariance 
 
         useToys: bool
@@ -201,37 +201,71 @@ class ModelBuilder:
             number of variations used in throwing toys
 
         """
+
         ntemps = bin_pars.shape[0]
         nbins = bin_pars.shape[1]
-        sub_fractions = np.matmul(self.convertermatrix, sub_pars) + self.convertervector
-
+        n_sub_pars = sub_pars.shape[0]
+        n_yields = ntemps - n_sub_pars
         if useToys:
-            toy_bin_pars = np.random.multivariate_normal(bin_pars.flatten(), bin_par_cov, Nvars)
-            toy_bin_pars = toy_bin_pars.reshape(Nvars, ntemps, nbins)
-            corrections = 1 + self.template_errors * toy_bin_pars
+            np.random.seed(seed)
+            pars=self.params._npars
+            toy_pars = np.random.multivariate_normal(pars.flatten(), par_cov, Nvars)
+            toy_yield_pars = toy_pars[:, self.yieldindices]
+            toy_sub_pars = toy_pars[:, self.subfraction_indices]
+            if noyieldprop:
+                yields = self.params.getParametersbyIndex(self.yieldindices).reshape(ntemps,1)
+            toy_bin_pars = toy_pars[:, self.bin_par_slice[0] : self.bin_par_slice[1]] 
+            cv_matrix = np.kron(np.eye(Nvars, dtype=int), self.convertermatrix)
+            cv_vector=np.repeat(self.convertervector.reshape(1, ntemps, 1),
+                             Nvars, axis=0).reshape(ntemps * Nvars, 1)
+            sub_fractions = np.matmul(cv_matrix, toy_sub_pars.reshape(n_sub_pars * Nvars, 1)) + cv_vector
+            sub_fractions = sub_fractions.reshape(Nvars, ntemps, 1)
+            corrections = 1 + self.template_errors * toy_bin_pars.reshape(Nvars, bin_pars.shape[0], bin_pars.shape[1])
             pdfs = self.template_fractions * corrections
             normpdfs = pdfs / np.sum(pdfs, 2)[:, :, np.newaxis]
-            bin_counts=yields.reshape(1, ntemps, 1) * sub_fractions.reshape(1, 
-                    ntemps, 1) * normpdfs
+            if noyieldprop:
+                bin_counts= yields.reshape(1, ntemps, 1) * sub_fractions * normpdfs
+            else:
+                bin_counts= toy_yield_pars.reshape(Nvars, ntemps, 1) * sub_fractions * normpdfs
             expected_per_bin = np.sum(bin_counts, axis=1)
             cov = np.cov(expected_per_bin.T)
         else:
+            # Computation of the bin par jacobian
+            sub_fractions = np.matmul(self.convertermatrix, sub_pars) + self.convertervector
             corrections = (1 + self.template_errors * bin_pars)
             pdfs = self.template_fractions * corrections
             norm = np.sum(pdfs, 1)[:,np.newaxis]
-            Term1 = yields * sub_fractions * self.template_fractions * self.template_errors / norm
-            Term1 = np.repeat( np.reshape(Term1,(1, ntemps, nbins)) ,nbins, axis=0).reshape(nbins, nbins * ntemps)
+            term1 = yields * sub_fractions * self.template_fractions * self.template_errors / norm
+            term1 = np.repeat( np.reshape(term1,(1, ntemps, nbins)) ,nbins, axis=0).reshape(nbins, nbins * ntemps)
             deltaik = np.repeat(np.eye(nbins)[np.array([range(0,nbins)])], ntemps, axis=1).reshape((nbins, nbins * ntemps))
-            Term1 = deltaik * Term1
-            Term2 = yields * sub_fractions * pdfs / norm**2
-            Term2 = np.repeat(Term2.T, nbins, axis=1)
-            Term2 *= np.repeat((self.template_fractions*self.template_errors).reshape((1,nbins*ntemps)),nbins,axis=0)
-            Jacobian= Term1 - Term2
-            cov = cov=np.matmul(Jacobian,np.matmul(bin_par_cov,Jacobian.T))
+            term1 = deltaik * term1
+            term2 = yields * sub_fractions * pdfs / norm**2
+            term2 = np.repeat(term2.T, nbins, axis=1)
+            term2 *= np.repeat((self.template_fractions * self.template_errors).reshape((1, nbins * ntemps)), nbins, axis=0)
+            binpar_jacobian = term1 - term2
+
+            # Computation of the subfraction jacobain
+            cv_matrix = np.kron(np.eye(n_sub_pars, dtype = int), self.convertermatrix)
+            one_hot_vector = np.eye(n_sub_pars)[np.array(range(0, n_sub_pars))].reshape(n_sub_pars**2, 1)
+            k = np.matmul(cv_matrix, one_hot_vector).reshape(n_sub_pars, ntemps, 1)
+            subfraction_jacobian = np.sum((yields * (pdfs / norm) * k), axis = 1).T
+
+            # Computation the yield jacobian
+            yv_matrix =  np.kron(np.eye(n_yields, dtype = int), self.YieldConverter())
+            one_hot_vector = np.eye(n_yields)[np.array(range(0, n_yields))].reshape(n_yields**2, 1)
+            k = np.matmul(yv_matrix, one_hot_vector).reshape(n_yields, ntemps, 1)
+            yield_jacobian =  np.sum((sub_fractions * (pdfs / norm) * k), axis = 1).T
+
+            # Combine the jacobians into a total paramater jacobian
+            jacobians = [subfraction_jacobian, yield_jacobian, binpar_jacobian]
+            jacobian = np.concatenate(jacobians, axis=1)
+
+            # Transform the parameter covariance with J.T par_cov J
+            cov = np.matmul(jacobian,np.matmul(par_cov,jacobian.T))
         return(cov)
     
     @jit(forceobj=True)
-    def compute_compatibility_chi2(self, bin_par_cov):
+    def compute_compatibility_chi2(self, par_cov):
         """
         Function computes a compatibility chi2 this 
         combines the MC expected events covariance 
@@ -240,7 +274,7 @@ class ModelBuilder:
 
         Parameters
         ----------
-        bin_par_cov: np.ndarray
+        par_cov: np.ndarray
             numpy array containing the bin par covariance 
 
         """
@@ -248,7 +282,7 @@ class ModelBuilder:
         sub_pars = self.params.getParametersbyIndex(self.subfraction_indices).reshape(self.num_fractions, 1)
         bin_pars = self.params.getParametersbySlice(self.bin_par_slice).reshape(self.shape)
 
-        cov_MC = self.compute_expected_events_cov(bin_pars, yields, sub_pars, bin_par_cov)
+        cov_MC = self.compute_expected_events_cov(bin_pars, yields, sub_pars, par_cov)
         cov_data = np.diag(self.xobserrors**2)
         cov = cov_MC + cov_data
         diff = self.ExpectedEventsPerBin(bin_pars, yields, sub_pars) - self.xobs
@@ -276,6 +310,14 @@ class ModelBuilder:
                 additive += [np.vstack([np.zeros((n_fractions,1)),np.full((1,1),1.)])]
         self.convertermatrix = np.vstack(arrays)
         self.convertervector = np.vstack(additive)
+
+    
+    def YieldConverter(self):
+        """ Determines the matrices required to 
+        tranform the yield parameters"""
+        counts = [template._num_templates for template in self.packedtemplates.values()]
+        return(np.repeat(np.identity(len(counts)), counts,axis=1).T)
+
         
     def AddConstraint(self,name,value,sigma):
         self.conindices.append(self.params.getIndex(name))
@@ -415,15 +457,15 @@ class ModelBuilder:
     def _create_block_diag_inv_corr_mat(self):
         if len(self.global_covs) == 0:
             inv_corr_mats = [template.inv_corr_mat() for template
-                         in self.templates.values()]
+                    in self.templates.values()]
             self._inv_corr = block_diag(*inv_corr_mats)
-            cov_mats = [template.cov_mat for template
-                         in self.templates.values()]
+            cov_mats = [template.cov_mat for template 
+                    in self.templates.values()]
             local_cov= block_diag(*cov_mats)
             self.total_cov=local_cov
         else:
             cov_mats = [template.cov_mat for template
-                         in self.templates.values()]
+                    in self.templates.values()]
             global_cov=np.sum(np.array(self.global_covs),axis=0)
             local_cov= block_diag(*cov_mats)
             global_cov=global_cov*(local_cov==0)
@@ -435,6 +477,7 @@ class ModelBuilder:
     def _create_block_diag_con_corr_mat(self):
         self.confunc=self._con_term
         self.inverseconcov = block_diag(*self.inverseconcov)
+        self.concov = block_diag(*self.concov)
 
     def getConstraintVector(self):
         return(self.convalue)
@@ -443,7 +486,7 @@ class ModelBuilder:
         return(self.connames)
 
     def getConstraintCovariance(self):
-        return(block_diag(*self.concov))
+        return(self.concov)
 
 
     @jit(forceobj=True)
@@ -527,7 +570,7 @@ class ModelBuilder:
 
         return np.sum(bc, axis=x_to_i[ax])
 
-    def plot_stacked_on(self, ax,All=False, customlabels=None, bin_par_cov=None, **kwargs):
+    def plot_stacked_on(self, ax,All=False, customlabels=None, par_cov=None, **kwargs):
 
         bin_mids = [template.bin_mids() for template in self.plottemplates.values()]
         bin_edges = next(iter(self.templates.values())).bin_edges()
@@ -571,8 +614,8 @@ class ModelBuilder:
           bin_mids = [bin_mids[0]]*int(N/num_bins)
 
         if self._dim > 1:
-            bin_counts = np.array([self._get_projection(kwargs["projection"], bc.reshape(shape)) for bc
-                          in bin_counts])
+            bin_counts = [self._get_projection(kwargs["projection"], bc.reshape(shape)) for bc
+                          in bin_counts]
             axis = kwargs["projection"]
             ax_to_index = {
                 "x": 0,
@@ -597,15 +640,20 @@ class ModelBuilder:
         #uncertainties_sq = [ (tempyield*template.fractions()*template.errors()).reshape(template.shape())** 2 for tempyield,template in
         #                    zip(yields,self.plottemplates.values())]
 
-        if bin_par_cov is None:
-            bin_par_cov = cov2corr(self.total_cov)
+        if par_cov is None:
+            ntemps = bin_pars.shape[0]
+            n_sub_pars = sub_pars.shape[0]
+            n_yields = ntemps - n_sub_pars
+            # here at the moment only the bin pars are considered in the propagation
+            precovs = [np.zeros((ntemps, ntemps)), cov2corr(self.total_cov)]
+            par_cov = block_diag(*precovs)
             
-        expected_event_cov = self.compute_expected_events_covariance(bin_pars, allyields, sub_pars, bin_par_cov, useToys=False)
+        expected_event_cov = self.compute_expected_events_cov(bin_pars, allyields, sub_pars, par_cov)
         total_uncertainty = np.sqrt(np.diag(expected_event_cov))
 
 
         if self._dim > 1:
-            J = self._get_projection_jacobian(kwargs["projection"], bin_counts.shape)
+            J = self._get_projection_jacobian(kwargs["projection"], shape)
             projection_cov = np.matmul(J, np.matmul(expected_event_cov, J.T))
             total_uncertainty = np.sqrt(np.diag(projection_cov))
 
@@ -613,7 +661,7 @@ class ModelBuilder:
             #    self._get_projection(kwargs["projection"], unc_sq) for unc_sq in uncertainties_sq
             #]
 
-        total_bin_count = np.sum(bin_counts, axis=0)
+        total_bin_count = np.sum(np.array(bin_counts), axis=0)
 
         ax[0].bar(
             x=bin_mids[0],
@@ -655,7 +703,7 @@ class ModelBuilder:
                         ls="", marker=".", color="black", label="Data")
 
             total_error = np.sqrt(data_bin_errors_sq+total_uncertainty**2)
-            pulls = (data_bin_counts - expected_bin_counts)/total_error
+            pulls = (data_bin_counts - total_bin_count)/total_error
             ax[1].set_ylim((-3, 3))
             ax[1].axhline(y=0, color='dimgray', alpha=0.8)
             ax[1].errorbar(data_bin_mids, pulls, yerr=1.,
