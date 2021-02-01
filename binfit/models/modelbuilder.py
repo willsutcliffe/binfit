@@ -637,18 +637,13 @@ class ModelBuilder:
             stacked=True
         )
 
-        #uncertainties_sq = [ (tempyield*template.fractions()*template.errors()).reshape(template.shape())** 2 for tempyield,template in
-        #                    zip(yields,self.plottemplates.values())]
-
         if par_cov is None:
             ntemps = bin_pars.shape[0]
-            n_sub_pars = sub_pars.shape[0]
-            n_yields = ntemps - n_sub_pars
             # here at the moment only the bin pars are considered in the propagation
             precovs = [np.zeros((ntemps, ntemps)), cov2corr(self.total_cov)]
             par_cov = block_diag(*precovs)
             
-        expected_event_cov = self.compute_expected_events_cov(bin_pars, allyields, sub_pars, par_cov)
+        expected_event_cov = self.compute_expected_events_cov(bin_pars, allyields, sub_pars, par_cov, useToys=False)
         total_uncertainty = np.sqrt(np.diag(expected_event_cov))
 
 
@@ -656,10 +651,6 @@ class ModelBuilder:
             J = self._get_projection_jacobian(kwargs["projection"], shape)
             projection_cov = np.matmul(J, np.matmul(expected_event_cov, J.T))
             total_uncertainty = np.sqrt(np.diag(projection_cov))
-
-            #uncertainties_sq = [
-            #    self._get_projection(kwargs["projection"], unc_sq) for unc_sq in uncertainties_sq
-            #]
 
         total_bin_count = np.sum(np.array(bin_counts), axis=0)
 
