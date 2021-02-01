@@ -561,10 +561,12 @@ class ModelBuilder:
         nx = shape[0]
         ny = shape[1]
 
-        if ax=="x":
-            return(np.repeat(np.identity(nx), np.array([ny] * nx),axis=1))
-        elif ax=="y":
-            return(np.repeat(np.eye(ny)[np.array([range(0, ny)])], nx, axis=1).reshape((ny, nx * ny)))
+        if ax == "x":
+            return np.repeat(np.identity(nx), np.array([ny] * nx),axis=1)
+        elif ax == "y":
+            return np.repeat(np.eye(ny)[np.array([range(0, ny)])], nx, axis=1).reshape((ny, nx * ny))
+        else:
+            raise RuntimeError(f"Value of `ax` is {ax}, but should be either \"x\" or \"y\".")
 
 
 
