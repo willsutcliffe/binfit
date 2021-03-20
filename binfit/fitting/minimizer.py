@@ -319,9 +319,6 @@ class IMinuitMinimizer(AbstractMinimizer):
         self._params.covariance = m.covariance
         self._params.correlation = m.covariance.correlation
 
-        print(self._params.covariance)
-        print(self._params.correlation)
-
         self._success = (
             fmin.is_valid and fmin.has_valid_parameters and fmin.has_covariance
         )
