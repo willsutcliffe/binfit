@@ -14,6 +14,9 @@ from iminuit import Minuit
 from scipy.optimize import minimize
 import tabulate
 
+import pkg_resources
+from packaging import version
+
 from binfit.utility import cov2corr, id_to_index
 
 logging.getLogger(__name__).addHandler(logging.NullHandler())
@@ -278,7 +281,58 @@ class IMinuitMinimizer(AbstractMinimizer):
         super().__init__(fcn, param_names)
         self._fixed_params = [False for _ in self.params.names]
 
+
     def minimize(self, initial_params, verbose=False, errordef=0.5, **kwargs):
+        """
+          Detects the iminuit version and instantiates the minimizer with the 
+          appropriate interface.
+        """
+        if version.parse(pkg_resources.get_distribution('iminuit').version) < version.parse("2.0.0"):
+          min_func =  self._minimize_iminuit1
+        else:
+          min_func =  self._minimize_iminuit2
+        return min_func(initial_params, verbose, errordef, **kwargs)
+
+
+    def _minimize_iminuit2(self, initial_params, verbose=False, errordef=0.5, **kwargs):
+        """
+          Minimize function for iminuit version > 2.0.0 interface
+        """
+
+        m = Minuit(
+            self._fcn,
+            initial_params,
+            name=self.params.names
+        )
+        m.errors = 0.05*initial_params
+        m.errordef = Minuit.LIKELIHOOD
+        m.fixed    = self._fixed_params
+        m.limits   = self._param_bounds
+        m.print_level = 1
+
+        # perform minimization twice!
+        fmin = m.migrad(ncall=20000).fmin
+        fmin = m.migrad(ncall=20000).fmin
+
+        self._fcn_min_val = m.fval
+        self._params.values = m.values
+        self._params.errors = m.errors
+        self._params.covariance = m.covariance
+        self._params.correlation = m.covariance.correlation
+
+        print(self._params.covariance)
+        print(self._params.correlation)
+
+        self._success = (
+            fmin.is_valid and fmin.has_valid_parameters and fmin.has_covariance
+        )
+
+        return MinimizeResult(m.fval, self._params, self._success)
+
+    def _minimize_iminuit1(self, initial_params, verbose=False, errordef=0.5, **kwargs):
+        """
+          Minimize function for iminuit version < 2.0.0 interface
+        """
 
         m = Minuit.from_array_func(
             self._fcn,
@@ -305,10 +359,9 @@ class IMinuitMinimizer(AbstractMinimizer):
             fmin["is_valid"] and fmin["has_valid_parameters"] and fmin["has_covariance"]
         )
 
-        # if not self._success:
-        #     raise RuntimeError(f"Minimization was not successful.\n" f"{fmin}\n")
-
         return MinimizeResult(m.fval, self._params, self._success)
+
+
 
     def set_param_fixed(self, param_id):
         param_index = self.params.param_id_to_index(param_id)
