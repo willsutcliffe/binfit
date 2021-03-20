@@ -284,7 +284,7 @@ class IMinuitMinimizer(AbstractMinimizer):
 
     def minimize(self, initial_params, verbose=False, errordef=0.5, **kwargs):
         """
-          Detects the iminuit version and instantiates the minimizer with the 
+          Detects the iminuit version and calls the minimizer with the 
           appropriate interface.
         """
         if version.parse(pkg_resources.get_distribution('iminuit').version) < version.parse("2.0.0"):
