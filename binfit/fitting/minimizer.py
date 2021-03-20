@@ -293,7 +293,6 @@ class IMinuitMinimizer(AbstractMinimizer):
           min_func =  self._minimize_iminuit2
         return min_func(initial_params, verbose, errordef, **kwargs)
 
-
     def _minimize_iminuit2(self, initial_params, verbose=False, errordef=0.5, **kwargs):
         """
           Minimize function for iminuit version > 2.0.0 interface
@@ -360,8 +359,6 @@ class IMinuitMinimizer(AbstractMinimizer):
         )
 
         return MinimizeResult(m.fval, self._params, self._success)
-
-
 
     def set_param_fixed(self, param_id):
         param_index = self.params.param_id_to_index(param_id)
