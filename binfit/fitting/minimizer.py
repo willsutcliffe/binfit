@@ -13,7 +13,6 @@ import pandas as pd
 from iminuit import Minuit
 from scipy.optimize import minimize
 import tabulate
-import pdb
 
 import pkg_resources
 from packaging import version
@@ -323,7 +322,7 @@ class IMinuitMinimizer(AbstractMinimizer):
         # In version 2 the covariance matrix is always the full size including also fixed parameters.
         # In version 1 by default fixed parameters were excluded. This recovers that behaviour.
         # this is a workaround that loses the nice printing of iminuit.util.matrix - TODO improve
-        floated_params = np.array([not elem for elem in self._fixed_params])
+        floated_params = [not elem for elem in self._fixed_params]
         self._params.covariance = np.array(m.covariance.tolist())[floated_params, :][:, floated_params]
         self._params.correlation = np.array(m.covariance.correlation().tolist())[floated_params, :][:, floated_params]
 
