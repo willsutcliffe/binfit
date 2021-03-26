@@ -13,6 +13,7 @@ import pandas as pd
 from iminuit import Minuit
 from scipy.optimize import minimize
 import tabulate
+import pdb
 
 import pkg_resources
 from packaging import version
@@ -310,8 +311,10 @@ class IMinuitMinimizer(AbstractMinimizer):
         m.print_level = 1
 
         # perform minimization twice!
-        fmin = m.migrad(ncall=20000).fmin
-        fmin = m.migrad(ncall=20000).fmin
+        m.migrad(ncall=20000)
+        m.migrad(ncall=20000)
+        
+        fmin = m.fmin
 
         self._fcn_min_val = m.fval
         self._params.values = m.values
@@ -319,8 +322,10 @@ class IMinuitMinimizer(AbstractMinimizer):
 
         # In version 2 the covariance matrix is always the full size including also fixed parameters.
         # In version 1 by default fixed parameters were excluded. This recovers that behaviour.
-        self._params.covariance = m.covariance[[not elem for elem in self._fixed_params]]
-        self._params.correlation = self._params.covariance.correlation()
+        # this is a workaround that loses the nice printing of iminuit.util.matrix - TODO improve
+        floated_params = np.array([not elem for elem in self._fixed_params])
+        self._params.covariance = np.array(m.covariance.tolist())[floated_params, :][:, floated_params]
+        self._params.correlation = np.array(m.covariance.correlation().tolist())[floated_params, :][:, floated_params]
 
         self._success = (
             fmin.is_valid and fmin.has_valid_parameters and fmin.has_covariance
