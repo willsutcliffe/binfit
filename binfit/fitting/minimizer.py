@@ -316,8 +316,11 @@ class IMinuitMinimizer(AbstractMinimizer):
         self._fcn_min_val = m.fval
         self._params.values = m.values
         self._params.errors = m.errors
-        self._params.covariance = m.covariance
-        self._params.correlation = m.covariance.correlation()
+
+        # In version 2 the covariance matrix is always the full size including also fixed parameters.
+        # In version 1 by default fixed parameters were excluded. This recovers that behaviour.
+        self._params.covariance = m.covariance[[not elem for elem in self._fixed_params]]
+        self._params.correlation = self._params.covariance.correlation()
 
         self._success = (
             fmin.is_valid and fmin.has_valid_parameters and fmin.has_covariance
