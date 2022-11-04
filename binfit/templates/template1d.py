@@ -112,16 +112,28 @@ class Template1d(SingleTemplate):
         hdown = Hist1d(
             bins = self.bin_edges(), data=data, weights=weights_down
         )
-        self._upvars.append(list(hup.bin_counts.flatten()-self._flat_bin_counts))
-        self._downvars.append(list(hdown.bin_counts.flatten()-self._flat_bin_counts))
-        self._nupvars = np.array(self._upvars)
-        self._ndownvars = np.array(self._downvars)
+        self._upvars.append((hup.bin_counts.flatten()-self._flat_bin_counts)/self._flat_bin_counts)
+        self._downvars.append((hdown.bin_counts.flatten()-self._flat_bin_counts)/self._flat_bin_counts)
+        #self._nupvars = np.array(self._upvars)
+        #self._ndownvars = np.array(self._downvars)
         if register:
-           self._params.addParameter(name,0.)
+           self._sys_par_indices.append(self._params.addParameter(name,0.))
         else:
            self._sys_par_indices.append(self._params.getIndex(name))    
         self._fraction_function = self.bin_fractions_with_sys
-        
+
+    def add_singlepar_flat(self, name, register):
+        n = len(self._flat_bin_counts)
+        self._upvars.append(np.zeros(n))
+        self._downvars.append(np.zeros((n)))
+        #self._nupvars = np.array(self._upvars)
+        #self._ndownvars = np.array(self._downvars)
+
+        if register:
+           self._sys_par_indices.append(self._params.addParameter(name,0.))
+        else:
+           self._sys_par_indices.append(self._params.getIndex(name))
+
     def add_cov(self, cov):
         self._add_cov_mat(cov)
 

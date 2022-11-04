@@ -192,6 +192,10 @@ class SingleTemplate(AbstractTemplate,ABC):
     def cov_mats(self):
         return self._cov_mats
 
+    @property
+    def sys_par_indices(self):
+        return self._sys_par_indices
+
     def corr(self):
         return self._corr
 
@@ -215,5 +219,13 @@ class SingleTemplate(AbstractTemplate,ABC):
     def get_ndown_vars(self):
         return(self._ndownvars)
 
+    def get_up_vars(self):
+        return(self._upvars)
+
+    def get_down_vars(self):
+        return(self._downvars)
+
     def set_bin_par_indices(self,bin_par_indices):
         self._bin_par_indices = bin_par_indices
+
+

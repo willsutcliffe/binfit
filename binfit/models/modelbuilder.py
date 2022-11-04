@@ -43,6 +43,8 @@ class ModelBuilder:
         self.num_bins = None
         self.global_covs=[]
         self.confunc = self._nocon_term
+        self.uperrors = None
+        self.downerrors = None
 
     def AddTemplate(self,template,value,create=True, same = True):
         if(self.num_bins == None):
@@ -105,15 +107,15 @@ class ModelBuilder:
     @property
     def up_errors(self):
         """Property that returns upwards errors"""
-        return np.stack([template.get_nup_vars() for template in self.templates.values()])
+        return self.uperrors
 
     @property
     def down_errors(self):
         """Property that returns downwards errors"""
-        return np.stack([template.get_ndown_vars() for template in self.templates.values()])
+        return self.downerrors
 
     def InitialiseBinPars(self):
-        """ Add parameters for the template """
+        """ Add bin parameters for the template """
 
         bin_par_names = []
         bin_par_indices = []
@@ -125,15 +127,26 @@ class ModelBuilder:
             bin_par_indices += temp_bin_par_indices
         self.bin_par_slice = (bin_par_indices[0],bin_par_indices[-1]+1)
 
-    @jit(forceobj=True)
-    def ExpectedEventsPerBin(self,bin_pars,yields,sub_pars):
-        #sys_pars = self.params.getParametersbyIndex(self.sys_pars)
-        # compute the up and down errors for single par varaitions
-        #up_corr = np.prod(1+sys_pars*(sys_pars>0)*self.up_errors,0)
-        #down_corr = np.prod(1+sys_pars*(sys_pars<0)*self.down_errors,0)
-        #corrections = (1+self.template_errors*bin_pars) *(up_corr + down_corr)
+    def StoreSysPars(self):
+        """ Add bin parameters for the template """
 
-        corrections = (1+self.template_errors*bin_pars)
+        sys_par_indices = []
+        for template in self.templates.values():
+            if len(template.sys_par_indices) > 0:
+                sys_par_indices.append(template.sys_par_indices)
+        sys_par_indices = np.unique(np.concatenate(sys_par_indices))
+        self.sys_par_indices = sys_par_indices
+        self.uperrors = np.stack([template.get_up_vars() for template in self.templates.values()])
+        self.downerrors = np.stack([template.get_down_vars() for template in self.templates.values()])
+
+
+
+
+    @jit(forceobj=True)
+    def ExpectedEventsPerBin(self, bin_pars, yields, sub_pars, sys_pars):
+        singlepar_corr = np.prod(1+sys_pars*(sys_pars>0)*self.up_errors +
+                                 sys_pars*(sys_pars<0)*self.down_errors,0)
+        corrections = (1+self.template_errors*bin_pars) * (singlepar_corr)
         sub_fractions = np.matmul(self.convertermatrix,sub_pars) + self.convertervector
         pdfs = self.template_fractions*corrections
         norm_pdfs = pdfs/np.sum(pdfs,1)[:,np.newaxis]
@@ -199,6 +212,25 @@ class ModelBuilder:
 
     def AddGlobalCov(self,cov):
         self.global_covs.append(cov)
+
+    def add_singlepar_variation(self, var, systematic, data_dict, up_weight_name, down_weight_name):
+        i = 0
+        register = True
+        for template_name in self.templates.keys():
+            if template_name in data_dict.keys():
+
+                self.templates[template_name].add_singlepar_variation(data_dict[template_name][var], data_dict[template_name][up_weight_name],
+                                        data_dict[template_name][down_weight_name],
+                                        systematic,
+                                        register
+                                        )
+            else:
+
+                self.templates[template_name].add_singlepar_flat(systematic,register)
+
+            if i == 0:
+                register = False
+            i += 1
 
     def AddGlobalTrackingCov(self, inputdfs, var, weight_names, error_per_trk):
         keys=self.templates.keys()
@@ -352,24 +384,28 @@ class ModelBuilder:
         yields = self.params.getParametersbyIndex(self.yieldindices).reshape(self.num_templates, 1)
         sub_pars = self.params.getParametersbyIndex(self.subfraction_indices).reshape(self.num_fractions, 1)
         bin_pars = self.params.getParametersbySlice(self.bin_par_slice)
-        chi2 = self.chi2_compute(bin_pars, yields, sub_pars)
+        sys_pars = self.params.getParametersbyIndex(self.sys_par_indices)
+        chi2 = self.chi2_compute(bin_pars, yields, sub_pars, sys_pars)
         return(chi2)
 
     @jit(forceobj=True)
-    def chi2_compute(self, bin_pars, yields, sub_pars):
-        chi2data = np.sum((self.ExpectedEventsPerBin(bin_pars.reshape(self.shape), yields, sub_pars) - self.xobs) ** 2 / (2 * self.xobserrors**2))
+    def chi2_compute(self, bin_pars, yields, sub_pars, sys_pars):
+        chi2data = np.sum((self.ExpectedEventsPerBin(bin_pars.reshape(self.shape), yields, sub_pars, sys_pars) - self.xobs) ** 2 / (2 * self.xobserrors**2))
         chi2 = chi2data + self._gauss_term(bin_pars) + self.confunc()
         return(chi2)
     
     @jit(forceobj=True)
     def NLL(self, pars):
         self.params.setParameters(pars)
+        sys_pars = self.params.getParametersbyIndex(self.sys_par_indices)
         yields = self.params.getParametersbyIndex(self.yieldindices).reshape(self.num_templates, 1)
         sub_pars = self.params.getParametersbyIndex(self.subfraction_indices).reshape(self.num_fractions, 1)
         bin_pars = self.params.getParametersbySlice(self.bin_par_slice)
-        exp_evts_per_bin = self.ExpectedEventsPerBin(bin_pars.reshape(self.shape), yields, sub_pars)
+
+        exp_evts_per_bin = self.ExpectedEventsPerBin(bin_pars.reshape(self.shape), yields, sub_pars, sys_pars)
         poisson_term = np.sum(exp_evts_per_bin - self.xobs - xlogyx(self.xobs, exp_evts_per_bin))
-        NLL = poisson_term + (self._gauss_term(bin_pars) + self.confunc()) / 2.
+        NLL = poisson_term + (self._gauss_term(bin_pars) + self.confunc()) / 2. + np.sum(sys_pars**2)/2.
+        print('NLL',NLL)
         return(NLL)
 
 
@@ -396,11 +432,14 @@ class ModelBuilder:
         sub_pars = self.params.getParametersbyIndex(self.subfraction_indices).reshape(self.num_fractions,1)
         bin_pars = self.params.getParametersbySlice(self.bin_par_slice).reshape(self.shape)
         sub_fractions = np.matmul(self.convertermatrix,sub_pars) + self.convertervector
-        corrections = (1+self.template_errors*bin_pars)
+        sys_pars = self.params.getParametersbyIndex(self.sys_par_indices)
+        singlepar_corr = np.prod(1 + sys_pars * (sys_pars > 0) * self.up_errors +
+                                 sys_pars * (sys_pars < 0) * self.down_errors, 0)
+        corrections = (1 + self.template_errors * bin_pars) * (singlepar_corr)
         sub_fractions = np.matmul(self.convertermatrix,sub_pars) + self.convertervector
         pdfs = self.template_fractions*corrections
         norm_pdfs = pdfs/np.sum(pdfs,1)[:,np.newaxis]
-        expected_bin_counts = self.ExpectedEventsPerBin(bin_pars,allyields,sub_pars) 
+        expected_bin_counts = self.ExpectedEventsPerBin(bin_pars,allyields,sub_pars, sys_pars)
 
         bin_counts = [tempyield*template.fractions() for tempyield,template in zip(yields,self.plottemplates.values())]
         if customlabels==None:
