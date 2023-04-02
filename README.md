@@ -21,6 +21,7 @@ python3 -m pip install ./
 ```
 
 ## Example
+The following example can be followed in binfit/examples/BinFit\_example\_1D.ipynb 
 
 Initialize histograms
 ```
@@ -123,11 +124,9 @@ plt.savefig('MX_all.pdf')
 ## Fitting procedure
 
 The number of expected events is given by 
-\begin{equation}
-\begin{split}
+```math
          \nu^{\rm exp}_{i}(\nu^{j},\theta^{j}_{i}) = \sum_{j} \nu^{j}  p^{j}_{i}
-\end{split} 
-\end{equation}
+```
 where $p^{j}_{i}$ is the probability that an event from template, $j$, ends up in bin $i$. Meanwhile, $\nu^{j}$ are yields, which are determined by the fit.
 
 The discrete pdfs are subject to variations from nuisance parameters, $\theta^{j}_{i}$, of the form,
@@ -147,3 +146,4 @@ The model is fitted to data by minimising the following $-2 \log \mathcal{L}$,
 \end{equation}
 where $\nu^{\rm obs}_{i}$ is the number of events observed in a given bin $i$. 
 
+## Publications which used binfit
