@@ -122,6 +122,7 @@ The number of expected events is given by
 \begin{split}
          \nu^{\rm exp}_{i}(\nu^{j},\theta^{j}_{i}) = \sum_{j} \nu^{j}  p^{j}_{i}
 \end{split} 
+\end{equation}
 where $p^{j}_{i}$ is the probability that an event from template, $j$, ends up in bin $i$. Meanwhile, $\nu^{j}$ are yields, which are determined by the fit.
 
 The discrete pdfs are subject to variations from nuisance parameters, $\theta^{j}_{i}$, of the form,
