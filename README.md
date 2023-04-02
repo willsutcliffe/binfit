@@ -150,4 +150,10 @@ The model is fitted to data by minimising the following $-2 \log \mathcal{L}$,
 ```
 where $\nu^{\rm obs}_{i}$ is the number of events observed in a given bin $i$. 
 
-## Publications which used binfit
+## Publications and conference results which used binfit for the fit results
+
+
+* R. Van Tonder, L. Cao, W. Sutcliffe, M. Welsch, F.U. Bernlochner, et al. (Belle Collaboration), *Measurements of $q^{2}$ moments of inclusive $B \rightarrow X_{c}\ell \nu$ decays with hadronic tagging*, Phys. Rev. D. **104** (2021) 112011 https://journals.aps.org/prd/pdf/10.1103/PhysRevD.104.112011
+* L. Cao, W. Sutcliffe, R. Van Tonder, F.U. Bernlochner, et al. (Belle Collaboration), *Measurement of differential branching fractions of inclusive $B \rightarrow X_{u} \ell \nu$ decays*, Phys. Rev. Lett. **127** (2021) 261801 https://journals.aps.org/prl/pdf/10.1103/PhysRevLett.127.261801\\
+* L. Cao, W. Sutcliffe, R. Van Tonder, F.U. Bernlochner, et al. (Belle Collaboration), *Measurement of differential branching fractions of inclusive $B \rightarrow X_{u} \ell \nu$ decays*, Phys. Rev. D. **127** (2021) 012008 https://journals.aps.org/prd/pdf/10.1103/PhysRevD.104.012008\\
+
