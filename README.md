@@ -2,6 +2,11 @@
 
 binfit is an binned maximum likelihood fitting framework implemented using vectorized calculation in numpy. Systematic uncertainties are handled by bin nuisance parameters for each fit template.
 
+Below is an example of a fit plot produced by binfit:
+<p float="left">
+  <img src="images/MX.png" width="600" />
+</p>
+
 ## Installation 
 
 The package can be installed with pip in direcotry with setup.py:
