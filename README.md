@@ -130,20 +130,24 @@ The number of expected events is given by
 where $p^{j}_{i}$ is the probability that an event from template, $j$, ends up in bin $i$. Meanwhile, $\nu^{j}$ are yields, which are determined by the fit.
 
 The discrete pdfs are subject to variations from nuisance parameters, $\theta^{j}_{i}$, of the form,
+```math
 \begin{equation}
 \begin{split}
         p^{j}_{i} \rightarrow  \frac{ p^{j}_{i}(1 + \epsilon^{j}_{i} \theta^{j}_{i} )}{  \sum_{k}  p^{j}_{k} (1 + \epsilon^{j}_{k} \theta^{j}_{k} ) }\; ,
 \end{split} 
 \end{equation}
+```
 which account for both MC template statistics and additional systematic effects. The associated bin to bin correlations within and across templates, which result from systematic uncertainties, are accounted for in the correlation matrix, $\rho_{\theta}$. This correlation matrix is determined from the total covariance matrix, which is the combined sum of the covariance matrices for each systematic effect  considered. 
 
 
 The model is fitted to data by minimising the following $-2 \log \mathcal{L}$,
+```math
 \begin{equation}
 \begin{split}
 	-2 \log \mathcal{L}  =  -2 \log \prod_{i} {\rm Poisson}(\nu^{\rm obs}_{i}, \nu^{\rm exp}_{i})  + \theta^{T} \rho^{-1}_{\theta} \theta^{T}  + (k - k_{constraint})^{T} \Sigma^{-1}_{\rm constraints} (k - k_{constraint})
 \end{split} 
 \end{equation}
+```
 where $\nu^{\rm obs}_{i}$ is the number of events observed in a given bin $i$. 
 
 ## Publications which used binfit
